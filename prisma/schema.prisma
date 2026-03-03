@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  password      String
+  role          String    @default("STAFF")
+  avatar        String?
+  isApproved    Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Employee profile fields
+  firstName     String?
+  lastName      String?
+  displayName   String?
+  nickname      String?
+  phone         String?
+  position      String?
+  bio           String?
+  skills        String?   // comma-separated: "Management,Strategy,Creative Direction"
+  gender        String?   // ชาย, หญิง, LGBTQ
+  birthday      DateTime?
+  address       String?
+  idCardImageUrl String?
+  fatherName    String?
+  motherName    String?
+  salaryAccountNo String?
+  bankAccount   String?
+  maritalStatus String?   // โสด, สมรส, สมรส มีบุตร
+  themeColor    String?   // e.g. "purple", "blue", "pink"
+
+  ownedProjects      Project[]        @relation("ProjectOwner")
+  projectMemberships ProjectMember[]
+  assignedTasks      TaskAssignee[]
+  taskComments       TaskComment[]
+  createdTasks       Task[]           @relation("TaskCreator")
+}
+
+model Client {
+  id           String    @id @default(cuid())
+  name         String
+  contactName  String?
+  email        String?
+  phone        String?
+  address      String?
+  businessType String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  projects Project[]
+  revenues Revenue[]
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  clientId    String
+  ownerId     String
+  statusId    String
+  isCompleted Boolean   @default(false)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  client  Client          @relation(fields: [clientId], references: [id])
+  owner   User            @relation("ProjectOwner", fields: [ownerId], references: [id])
+  status  MasterData      @relation(fields: [statusId], references: [id])
+  members ProjectMember[]
+  tasks   Task[]
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  progress    Int       @default(0)
+  statusId    String?
+  createdById String?
+  dueDate     DateTime?
+  isClosed    Boolean   @default(false)
+  closedAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     Project          @relation(fields: [projectId], references: [id])
+  status      MasterData?      @relation(fields: [statusId], references: [id])
+  createdBy   User?            @relation("TaskCreator", fields: [createdById], references: [id])
+  assignees   TaskAssignee[]
+  comments    TaskComment[]
+  attachments TaskAttachment[]
+}
+
+model ProjectMember {
+  id        String @id @default(cuid())
+  projectId String
+  userId    String
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@unique([projectId, userId])
+}
+
+model TaskAssignee {
+  id     String @id @default(cuid())
+  taskId String
+  userId String
+
+  task Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id])
+
+  @@unique([taskId, userId])
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+}
+
+model TaskAttachment {
+  id        String   @id @default(cuid())
+  taskId    String
+  type      String
+  url       String
+  name      String?
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model Revenue {
+  id           String    @id @default(cuid())
+  clientId     String
+  amount       Float
+  date         DateTime
+  type         String
+  description  String?
+  isConfirmed  Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+}
+
+model MasterData {
+  id        String    @id @default(cuid())
+  category  String
+  name      String
+  order     Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  projects Project[]
+  tasks    Task[]
+}
