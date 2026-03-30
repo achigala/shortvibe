@@ -40,6 +40,7 @@ interface MasterDataClientProps {
 const categoryLabels: Record<string, string> = {
   PROJECT_STATUS: "สถานะโปรเจกต์",
   TASK_STATUS: "สถานะงาน",
+  TASK_CATEGORY: "หมวดหมู่งาน",
 }
 
 export function MasterDataClient({ groupedData }: MasterDataClientProps) {

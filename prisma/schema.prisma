@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 model User {
@@ -43,6 +44,14 @@ model User {
   assignedTasks      TaskAssignee[]
   taskComments       TaskComment[]
   createdTasks       Task[]           @relation("TaskCreator")
+  notifications      Notification[]
+
+  // Rewards
+  createdRewards      Reward[]            @relation("RewardCreator")
+  rewardAssignments   RewardAssignment[]  @relation("RewardAssignee")
+  assignedRewards     RewardAssignment[]  @relation("RewardAssigner")
+  rewardClaims        RewardClaim[]       @relation("RewardClaimer")
+  reviewedClaims      RewardClaim[]       @relation("RewardReviewer")
 }
 
 model Client {
@@ -70,14 +79,16 @@ model Project {
   isCompleted Boolean   @default(false)
   startDate   DateTime?
   endDate     DateTime?
+  budget      Float?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  client  Client          @relation(fields: [clientId], references: [id])
-  owner   User            @relation("ProjectOwner", fields: [ownerId], references: [id])
-  status  MasterData      @relation(fields: [statusId], references: [id])
-  members ProjectMember[]
-  tasks   Task[]
+  client   Client          @relation(fields: [clientId], references: [id])
+  owner    User            @relation("ProjectOwner", fields: [ownerId], references: [id])
+  status   MasterData      @relation(fields: [statusId], references: [id])
+  members  ProjectMember[]
+  tasks    Task[]
+  revenues Revenue[]
 }
 
 model Task {
@@ -87,6 +98,7 @@ model Task {
   description String?
   progress    Int       @default(0)
   statusId    String?
+  categoryId  String?
   createdById String?
   dueDate     DateTime?
   isClosed    Boolean   @default(false)
@@ -95,7 +107,8 @@ model Task {
   updatedAt   DateTime  @updatedAt
 
   project     Project          @relation(fields: [projectId], references: [id])
-  status      MasterData?      @relation(fields: [statusId], references: [id])
+  status      MasterData?      @relation("TaskStatus", fields: [statusId], references: [id])
+  category    MasterData?      @relation("TaskCategory", fields: [categoryId], references: [id])
   createdBy   User?            @relation("TaskCreator", fields: [createdById], references: [id])
   assignees   TaskAssignee[]
   comments    TaskComment[]
@@ -108,7 +121,7 @@ model ProjectMember {
   userId    String
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id])
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
 }
@@ -119,7 +132,7 @@ model TaskAssignee {
   userId String
 
   task Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User     @relation(fields: [userId], references: [id])
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([taskId, userId])
 }
@@ -133,7 +146,7 @@ model TaskComment {
   updatedAt DateTime @updatedAt
 
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model TaskAttachment {
@@ -150,6 +163,7 @@ model TaskAttachment {
 model Revenue {
   id           String    @id @default(cuid())
   clientId     String
+  projectId    String?
   amount       Float
   date         DateTime
   type         String
@@ -158,7 +172,8 @@ model Revenue {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  client Client @relation(fields: [clientId], references: [id])
+  client  Client   @relation(fields: [clientId], references: [id])
+  project Project? @relation(fields: [projectId], references: [id])
 }
 
 model MasterData {
@@ -170,6 +185,70 @@ model MasterData {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  projects Project[]
-  tasks    Task[]
+  projects      Project[]
+  tasks         Task[]    @relation("TaskStatus")
+  categoryTasks Task[]    @relation("TaskCategory")
+}
+
+model Reward {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  amount      Float
+  frequency   String   // MONTHLY, YEARLY, ONE_TIME
+  isActive    Boolean  @default(true)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdBy   User               @relation("RewardCreator", fields: [createdById], references: [id])
+  assignments RewardAssignment[]
+}
+
+model RewardAssignment {
+  id           String   @id @default(cuid())
+  rewardId     String
+  userId       String
+  assignedById String
+  isActive     Boolean  @default(true)
+  assignedAt   DateTime @default(now())
+
+  reward     Reward        @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+  user       User          @relation("RewardAssignee", fields: [userId], references: [id], onDelete: Cascade)
+  assignedBy User          @relation("RewardAssigner", fields: [assignedById], references: [id])
+  claims     RewardClaim[]
+
+  @@unique([rewardId, userId])
+}
+
+model RewardClaim {
+  id           String    @id @default(cuid())
+  assignmentId String
+  claimedById  String
+  period       String    // "2026-03" for MONTHLY, "2026" for YEARLY, "once" for ONE_TIME
+  status       String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  note         String?
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+  claimedAt    DateTime  @default(now())
+
+  assignment RewardAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  claimedBy  User             @relation("RewardClaimer", fields: [claimedById], references: [id])
+  reviewedBy User?            @relation("RewardReviewer", fields: [reviewedById], references: [id])
+
+  @@unique([assignmentId, period])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // NEW_REGISTRATION, PROJECT_ASSIGN, TASK_ASSIGN
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const { name, description, clientId, ownerId, statusId, startDate, endDate } = await req.json()
+  const { name, description, clientId, ownerId, statusId, startDate, endDate, budget } = await req.json()
 
   const project = await prisma.project.create({
     data: {
@@ -19,6 +19,7 @@ export async function POST(req: NextRequest) {
       statusId,
       startDate: startDate ? new Date(startDate) : null,
       endDate: endDate ? new Date(endDate) : null,
+      budget: budget && parseFloat(budget) > 0 ? parseFloat(budget) : null,
     },
   })
 

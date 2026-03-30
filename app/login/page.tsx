@@ -45,12 +45,6 @@ export default function LoginPage() {
     }
   }
 
-  const devAccounts = [
-    { name: "เอิร์น (Boss)", email: "boss@shortvibe.com", password: "admin123" },
-    { name: "เอย (Developer)", email: "dev@shortvibe.com", password: "admin123" },
-    { name: "พนักงาน (Staff)", email: "staff@shortvibe.com", password: "admin123" },
-  ]
-
   return (
     <div className="sv-login-bg flex items-center justify-center p-4">
       <div className="w-full max-w-[420px] relative z-10">
@@ -128,27 +122,6 @@ export default function LoginPage() {
               </Link>
             </p>
           </form>
-        </div>
-
-        {/* Dev Accounts Table */}
-        <div className="mt-4 bg-white/70 backdrop-blur-sm rounded-xl p-4 border border-gray-100">
-          <p className="text-xs text-gray-500 text-center mb-3 font-medium">
-            บัญชีทีมงาน Shortvibe
-          </p>
-          <div className="space-y-2">
-            {devAccounts.map((acc) => (
-              <div
-                key={acc.email}
-                className="flex items-center justify-between text-xs cursor-pointer hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
-                onClick={() => setFormData({ email: acc.email, password: acc.password })}
-              >
-                <span className="text-gray-600">
-                  <span className="font-medium">{acc.name}</span>: {acc.email}
-                </span>
-                <span className="text-gray-400 font-mono">{acc.password}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>

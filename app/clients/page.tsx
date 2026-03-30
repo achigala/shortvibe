@@ -12,7 +12,11 @@ export default async function ClientsPage() {
   const clients = await prisma.client.findMany({
     include: {
       projects: {
-        include: { status: true, owner: true },
+        include: {
+          status: true,
+          owner: true,
+          revenues: true,
+        },
         orderBy: { createdAt: "desc" },
       },
       revenues: true,
@@ -25,8 +29,7 @@ export default async function ClientsPage() {
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
     projects: c.projects.map(p => {
-      // Match revenue to project by description containing project name
-      const matchedRevenue = c.revenues.find(r => r.description?.includes(p.name))
+      const projectRevenue = p.revenues.reduce((sum, r) => sum + r.amount, 0)
       return {
         id: p.id,
         name: p.name,
@@ -35,7 +38,7 @@ export default async function ClientsPage() {
         endDate: p.endDate?.toISOString() || null,
         status: p.status.name,
         owner: p.owner.name,
-        amount: matchedRevenue?.amount || 0,
+        amount: projectRevenue,
       }
     }),
     totalRevenue: c.revenues.reduce((sum, r) => sum + r.amount, 0),

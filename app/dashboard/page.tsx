@@ -48,16 +48,14 @@ export default async function DashboardPage() {
       orderBy: { createdAt: "desc" },
       take: 5,
     }),
-    isBossOrDev
-      ? prisma.revenue.aggregate({
-        where: {
-          date: {
-            gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-          },
+    prisma.revenue.aggregate({
+      where: {
+        date: {
+          gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         },
-        _sum: { amount: true },
-      })
-      : Promise.resolve({ _sum: { amount: null } }),
+      },
+      _sum: { amount: true },
+    }),
     isBossOrDev
       ? prisma.revenue.aggregate({
         where: {
@@ -141,9 +139,21 @@ export default async function DashboardPage() {
           <p className="text-gray-500 mt-1">นี่คืองานของคุณในวันนี้</p>
         </div>
 
+        {/* Revenue Card - This Month */}
+        <div className="sv-highlight-green relative overflow-hidden rounded-2xl p-6">
+          <p className="text-sm text-white/80 font-medium">รายได้เดือนนี้</p>
+          <p className="text-3xl font-bold mt-2">฿{monthlyRevenueAmt.toLocaleString()}</p>
+          <p className="text-sm text-white/70 mt-2">
+            {new Date().toLocaleDateString("th-TH", { month: "long", year: "numeric" })}
+          </p>
+          <div className="absolute top-4 right-4 opacity-20">
+            <Wallet className="w-12 h-12" />
+          </div>
+        </div>
+
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white rounded-2xl p-5 sv-card-hover">
+          <Link href={`/projects?filter=me`} className="bg-white rounded-2xl p-5 sv-card-hover block no-underline">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">งานของฉัน</p>
@@ -152,8 +162,8 @@ export default async function DashboardPage() {
               </div>
               <div className="sv-icon-box sv-icon-blue"><FolderKanban className="w-5 h-5" /></div>
             </div>
-          </div>
-          <div className="bg-white rounded-2xl p-5 sv-card-hover">
+          </Link>
+          <Link href={`/projects?filter=active`} className="bg-white rounded-2xl p-5 sv-card-hover block no-underline">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">งานที่ต้องทำ</p>
@@ -162,8 +172,8 @@ export default async function DashboardPage() {
               </div>
               <div className="sv-icon-box sv-icon-orange"><Clock className="w-5 h-5" /></div>
             </div>
-          </div>
-          <div className="bg-white rounded-2xl p-5 sv-card-hover">
+          </Link>
+          <Link href="/projects" className="bg-white rounded-2xl p-5 sv-card-hover block no-underline">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">งานที่เสร็จแล้ว</p>
@@ -172,8 +182,8 @@ export default async function DashboardPage() {
               </div>
               <div className="sv-icon-box sv-icon-green"><CheckCircle2 className="w-5 h-5" /></div>
             </div>
-          </div>
-          <div className="bg-white rounded-2xl p-5 sv-card-hover">
+          </Link>
+          <Link href="/projects" className="bg-white rounded-2xl p-5 sv-card-hover block no-underline">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500">กำหนดส่งต่อไป</p>
@@ -184,7 +194,7 @@ export default async function DashboardPage() {
               </div>
               <div className="sv-icon-box sv-icon-purple"><CalendarClock className="w-5 h-5" /></div>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* My Tasks + Upcoming Deadlines */}
@@ -195,7 +205,7 @@ export default async function DashboardPage() {
               <h2 className="sv-section-title">
                 <FolderKanban className="w-5 h-5 text-blue-500" /> งานของฉัน
               </h2>
-              <Link href="/projects" className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1">
+              <Link href={`/projects?filter=me`} className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1">
                 ดูทั้งหมด <ArrowUpRight className="w-4 h-4" />
               </Link>
             </div>
@@ -206,7 +216,7 @@ export default async function DashboardPage() {
               {myTasks.map((task) => {
                 const days = getDaysRemaining(task.dueDate)
                 return (
-                  <div key={task.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+                  <Link key={task.id} href={`/projects/${task.project.id}`} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 rounded-lg px-2 -mx-2 transition-colors">
                     <div className="flex items-center gap-3">
                       <div className="sv-icon-box sv-icon-blue" style={{ width: 36, height: 36, borderRadius: 10 }}>
                         <FolderKanban className="w-4 h-4" />
@@ -226,7 +236,7 @@ export default async function DashboardPage() {
                         </span>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 )
               })}
             </div>
@@ -245,7 +255,7 @@ export default async function DashboardPage() {
                   const days = getDaysRemaining(task.dueDate)
                   const isOverdue = days !== null && days < 0
                   return (
-                    <div key={task.id} className="space-y-1">
+                    <Link key={task.id} href={`/projects/${task.project.id}`} className="block space-y-1 hover:bg-gray-50 rounded-lg p-2 -mx-2 transition-colors">
                       <div className="flex items-center justify-between">
                         <p className="text-sm font-medium text-gray-900">{task.project.name}</p>
                         <span className={`text-sm font-semibold ${isOverdue ? 'text-red-500' : days !== null && days <= 7 ? 'text-orange-500' : 'text-gray-500'}`}>
@@ -253,7 +263,7 @@ export default async function DashboardPage() {
                         </span>
                       </div>
                       <p className="text-xs text-gray-400">{task.project.client.name}</p>
-                    </div>
+                    </Link>
                   )
                 })}
               {myTasks.filter(t => t.dueDate).length === 0 && (

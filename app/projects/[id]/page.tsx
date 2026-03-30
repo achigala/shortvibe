@@ -13,7 +13,9 @@ export default async function ProjectDetailPage({
 
     const { id } = await params
 
-    const [project, users, taskStatuses] = await Promise.all([
+    const isBossOrDev = session.user.role === "BOSS" || session.user.role === "DEVELOPER"
+
+    const [project, users, taskStatuses, projectStatuses, revenues, taskCategories] = await Promise.all([
         prisma.project.findUnique({
             where: { id },
             include: {
@@ -31,6 +33,7 @@ export default async function ProjectDetailPage({
                             orderBy: { createdAt: "asc" as const },
                         },
                         attachments: true,
+                        category: true,
                     },
                     orderBy: { createdAt: "asc" as const },
                 },
@@ -38,13 +41,29 @@ export default async function ProjectDetailPage({
         }),
         prisma.user.findMany({ where: { isApproved: true }, orderBy: { name: "asc" } }),
         prisma.masterData.findMany({ where: { category: "TASK_STATUS" }, orderBy: { order: "asc" } }),
+        prisma.masterData.findMany({ where: { category: "PROJECT_STATUS" }, orderBy: { order: "asc" } }),
+        isBossOrDev
+            ? prisma.revenue.findMany({
+                where: { projectId: id },
+                orderBy: { date: "desc" },
+            })
+            : Promise.resolve([]),
+        prisma.masterData.findMany({ where: { category: "TASK_CATEGORY", isActive: true }, orderBy: { order: "asc" } }),
     ])
 
     if (!project) notFound()
 
     const isBoss = session.user.role === "BOSS"
-    const isBossOrDev = isBoss || session.user.role === "DEVELOPER"
     const currentUserId = (session.user as any).id as string
+
+    // Serialize revenues
+    const serializedRevenues = revenues.map(r => ({
+        id: r.id,
+        amount: r.amount,
+        date: r.date.toISOString(),
+        type: r.type,
+        description: r.description,
+    }))
 
     // Serialize dates (use 'as any' for user fields that include employee profile)
     const serialized = {
@@ -67,6 +86,7 @@ export default async function ProjectDetailPage({
             createdAt: t.createdAt.toISOString(),
             updatedAt: t.updatedAt.toISOString(),
             status: t.status ? { id: t.status.id, name: t.status.name, order: t.status.order } : null,
+            category: t.category ? { id: t.category.id, name: t.category.name, order: t.category.order } : null,
             createdBy: t.createdBy ? { id: t.createdBy.id, name: t.createdBy.name, nickname: (t.createdBy as any).nickname, avatar: t.createdBy.avatar } : null,
             assignees: t.assignees.map(a => ({
                 ...a,
@@ -97,9 +117,12 @@ export default async function ProjectDetailPage({
             project={serialized}
             users={serializedUsers}
             taskStatuses={taskStatuses.map(s => ({ ...s, createdAt: s.createdAt.toISOString(), updatedAt: s.updatedAt.toISOString() }))}
+            projectStatuses={projectStatuses.map(s => ({ id: s.id, name: s.name }))}
             isBoss={isBoss}
             isBossOrDev={isBossOrDev}
             currentUserId={currentUserId}
+            revenues={serializedRevenues}
+            taskCategories={taskCategories.map(c => ({ id: c.id, name: c.name, order: c.order, createdAt: c.createdAt.toISOString(), updatedAt: c.updatedAt.toISOString() }))}
         />
     )
 }

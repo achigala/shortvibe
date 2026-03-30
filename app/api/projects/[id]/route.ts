@@ -25,6 +25,7 @@ export async function PUT(
     if (body.statusId) data.statusId = body.statusId
     if (body.startDate !== undefined) data.startDate = body.startDate ? new Date(body.startDate) : null
     if (body.endDate !== undefined) data.endDate = body.endDate ? new Date(body.endDate) : null
+    if (body.budget !== undefined) data.budget = body.budget !== null && body.budget !== "" ? parseFloat(body.budget) : null
 
     const updated = await prisma.project.update({
         where: { id },

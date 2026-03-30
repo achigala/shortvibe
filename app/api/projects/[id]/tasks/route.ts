@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { NextRequest, NextResponse } from "next/server"
+import { createNotificationForMany } from "@/lib/notifications"
 
 // POST - Create task
 export async function POST(
@@ -26,6 +27,7 @@ export async function POST(
             projectId: id,
             name: body.name,
             description: body.description || null,
+            categoryId: body.categoryId || null,
             dueDate: body.dueDate ? new Date(body.dueDate) : null,
             statusId: "TASK_STATUS-1",
             createdById: creatorId,
@@ -36,10 +38,23 @@ export async function POST(
         include: {
             assignees: { include: { user: true } },
             createdBy: true,
+            category: true,
             comments: { include: { user: true } },
             attachments: true,
         },
     })
+
+    // Notify assignees
+    const assigneeIds: string[] = body.assigneeIds || []
+    const notifyIds = assigneeIds.filter((uid: string) => uid !== creatorId)
+    if (notifyIds.length > 0) {
+        await createNotificationForMany(notifyIds, {
+            type: "TASK_ASSIGN",
+            title: "มีงานใหม่มอบหมายให้คุณ",
+            message: `งาน "${body.name}" ในโปรเจค`,
+            link: `/projects/${id}`,
+        })
+    }
 
     return NextResponse.json(task)
 }

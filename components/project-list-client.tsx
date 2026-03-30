@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import {
     Search, FolderKanban, Clock, CheckCircle2,
-    Hourglass, PackageCheck, TrendingUp, Calendar
+    Hourglass, PackageCheck, TrendingUp, Calendar, X
 } from "lucide-react"
 import { CreateProjectDialog } from "@/components/create-project-dialog"
 import type { SelectOption } from "@/components/ui/searchable-select"
@@ -30,6 +31,7 @@ interface ProjectListClientProps {
     userOptions: SelectOption[]
     statusOptions: SelectOption[]
     isBossOrDev: boolean
+    currentUserId?: string
 }
 
 const getStatusBadge = (statusName: string) => {
@@ -53,10 +55,50 @@ export function ProjectListClient({
     userOptions,
     statusOptions,
     isBossOrDev,
+    currentUserId,
 }: ProjectListClientProps) {
+    const searchParams = useSearchParams()
     const [search, setSearch] = useState("")
     const [filterStatus, setFilterStatus] = useState("")
     const [filterOwner, setFilterOwner] = useState("")
+    const [filterMode, setFilterMode] = useState<string>("")
+    const [filterDateFrom, setFilterDateFrom] = useState("")
+    const [filterDateTo, setFilterDateTo] = useState("")
+
+    // Read URL query params on mount
+    useEffect(() => {
+        const filter = searchParams.get("filter")
+        const owner = searchParams.get("owner")
+        const status = searchParams.get("status")
+        const from = searchParams.get("from")
+        const to = searchParams.get("to")
+
+        if (filter === "me" && currentUserId) {
+            setFilterOwner(currentUserId)
+            setFilterMode("me")
+        }
+        if (filter === "active") {
+            setFilterMode("active")
+        }
+        if (owner) {
+            setFilterOwner(owner)
+        }
+        if (status) {
+            setFilterStatus(status)
+        }
+        if (from) {
+            setFilterDateFrom(from)
+        }
+        if (to) {
+            setFilterDateTo(to)
+        }
+    }, [searchParams, currentUserId])
+
+    const hasDateFilter = filterDateFrom || filterDateTo
+    const clearDateFilter = () => {
+        setFilterDateFrom("")
+        setFilterDateTo("")
+    }
 
     // Filter projects
     const filtered = projects.filter(p => {
@@ -65,7 +107,26 @@ export function ProjectListClient({
             p.client.name.toLowerCase().includes(search.toLowerCase())
         const matchStatus = !filterStatus || p.status.id === filterStatus
         const matchOwner = !filterOwner || p.members.some(m => m.user.name === users.find(u => u.id === filterOwner)?.name) || p.owner.name === users.find(u => u.id === filterOwner)?.name
-        return matchSearch && matchStatus && matchOwner
+
+        // Additional filter modes from URL
+        const matchMode = filterMode === "active" ? !p.isCompleted : true
+
+        // Date range filter (based on startDate)
+        let matchDate = true
+        if (filterDateFrom && p.startDate) {
+            matchDate = matchDate && new Date(p.startDate) >= new Date(filterDateFrom)
+        }
+        if (filterDateTo && p.startDate) {
+            const toDate = new Date(filterDateTo)
+            toDate.setHours(23, 59, 59, 999)
+            matchDate = matchDate && new Date(p.startDate) <= toDate
+        }
+        // If project has no startDate and date filter is active, exclude it
+        if ((filterDateFrom || filterDateTo) && !p.startDate) {
+            matchDate = false
+        }
+
+        return matchSearch && matchStatus && matchOwner && matchMode && matchDate
     })
 
     const activeProjects = filtered.filter(p => !p.isCompleted)
@@ -86,7 +147,7 @@ export function ProjectListClient({
                     <h1 className="text-2xl font-bold text-gray-900">จัดการโปรเจค</h1>
                     <p className="text-gray-500 mt-1">ติดตามความคืบหน้าและมอบหมายงาน</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                     <div className="relative">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                         <input
@@ -116,6 +177,39 @@ export function ProjectListClient({
                             <option key={u.id} value={u.id}>{u.name}</option>
                         ))}
                     </select>
+                    {/* Date Range Filter */}
+                    <div className="flex items-center gap-1.5">
+                        <div className="relative">
+                            <Calendar className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input
+                                type="date"
+                                value={filterDateFrom}
+                                onChange={(e) => setFilterDateFrom(e.target.value)}
+                                className="pl-8 pr-2 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 w-[150px]"
+                                title="ตั้งแต่วันที่"
+                            />
+                        </div>
+                        <span className="text-xs text-gray-400">ถึง</span>
+                        <div className="relative">
+                            <Calendar className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input
+                                type="date"
+                                value={filterDateTo}
+                                onChange={(e) => setFilterDateTo(e.target.value)}
+                                className="pl-8 pr-2 py-2.5 rounded-xl border border-gray-200 bg-white text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 w-[150px]"
+                                title="ถึงวันที่"
+                            />
+                        </div>
+                        {hasDateFilter && (
+                            <button
+                                onClick={clearDateFilter}
+                                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                                title="ล้าง filter วันที่"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        )}
+                    </div>
                     {isBossOrDev && (
                         <CreateProjectDialog
                             clients={clients}

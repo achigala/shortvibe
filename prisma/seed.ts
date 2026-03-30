@@ -54,6 +54,33 @@ async function main() {
     })
   }
 
+  // === TASK CATEGORIES ===
+  const taskCategories = [
+    { id: "TASK_CAT-1", name: "บรีฟคอนเทนต์", order: 1 },
+    { id: "TASK_CAT-2", name: "Storyboard", order: 2 },
+    { id: "TASK_CAT-3", name: "Meeting", order: 3 },
+    { id: "TASK_CAT-4", name: "รอ Feedback (Pre)", order: 4 },
+    { id: "TASK_CAT-5", name: "ถ่ายทำ", order: 5 },
+    { id: "TASK_CAT-6", name: "ตัดต่อ", order: 6 },
+    { id: "TASK_CAT-7", name: "พากษ์เสียง", order: 7 },
+    { id: "TASK_CAT-8", name: "Upload Footage", order: 8 },
+    { id: "TASK_CAT-9", name: "รอ Feedback (Post)", order: 9 },
+    { id: "TASK_CAT-10", name: "แก้ไขรอบ 1", order: 10 },
+    { id: "TASK_CAT-11", name: "แก้ไขรอบ 2", order: 11 },
+    { id: "TASK_CAT-12", name: "แก้ไขรอบ 3", order: 12 },
+    { id: "TASK_CAT-13", name: "แก้ไขรอบ 4", order: 13 },
+    { id: "TASK_CAT-14", name: "แก้ไขรอบ 5", order: 14 },
+    { id: "TASK_CAT-15", name: "ส่งของคืน", order: 15 },
+  ]
+
+  for (const cat of taskCategories) {
+    await prisma.masterData.upsert({
+      where: { id: cat.id },
+      update: {},
+      create: { id: cat.id, category: "TASK_CATEGORY", name: cat.name, order: cat.order },
+    })
+  }
+
   const activeStatusId = "PROJECT_STATUS-2"
   const doneStatusId = "PROJECT_STATUS-4"
 

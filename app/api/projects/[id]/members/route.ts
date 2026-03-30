@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { NextRequest, NextResponse } from "next/server"
+import { createNotificationForMany } from "@/lib/notifications"
 
 // GET - Get project members
 export async function GET(
@@ -32,6 +33,13 @@ export async function PUT(
     const body = await request.json()
     const userIds: string[] = body.userIds || []
 
+    // Get existing members before update
+    const existingMembers = await prisma.projectMember.findMany({
+        where: { projectId: id },
+        select: { userId: true },
+    })
+    const existingUserIds = existingMembers.map(m => m.userId)
+
     // Delete existing members
     await prisma.projectMember.deleteMany({ where: { projectId: id } })
 
@@ -47,6 +55,20 @@ export async function PUT(
         await prisma.project.update({
             where: { id },
             data: { ownerId: userIds[0] },
+        })
+    }
+
+    // Notify newly added members
+    const newMemberIds = userIds.filter(uid => !existingUserIds.includes(uid))
+    if (newMemberIds.length > 0) {
+        const project = await prisma.project.findUnique({ where: { id }, select: { name: true, client: { select: { name: true } } } })
+        const projectName = project?.name || "โปรเจค"
+        const clientName = project?.client?.name || ""
+        await createNotificationForMany(newMemberIds, {
+            type: "PROJECT_ASSIGN",
+            title: "ถูกเพิ่มเข้าโปรเจค",
+            message: `คุณถูกเพิ่มเข้าโปรเจค "${projectName}" ${clientName ? `(${clientName})` : ""}`,
+            link: `/projects/${id}`,
         })
     }
 

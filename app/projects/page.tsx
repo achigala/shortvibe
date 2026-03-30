@@ -59,6 +59,7 @@ export default async function ProjectsPage() {
       userOptions={users.map(u => ({ value: u.id, label: u.name }))}
       statusOptions={statuses.map(s => ({ value: s.id, label: s.name }))}
       isBossOrDev={isBossOrDev}
+      currentUserId={session.user.id}
     />
   )
 }

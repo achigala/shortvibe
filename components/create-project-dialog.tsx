@@ -54,6 +54,7 @@ export function CreateProjectDialog({ clients, users, statuses }: CreateProjectD
           statusId,
           startDate: formData.get("startDate") || null,
           endDate: formData.get("endDate") || null,
+          budget: formData.get("budget") || null,
         }),
       })
 
@@ -120,6 +121,10 @@ export function CreateProjectDialog({ clients, users, statuses }: CreateProjectD
               searchPlaceholder="ค้นหาสถานะ..."
               required
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="budget">มูลค่าโปรเจค (บาท)</Label>
+            <Input id="budget" name="budget" type="number" min="0" step="0.01" placeholder="0.00" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

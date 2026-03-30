@@ -7,7 +7,8 @@ import {
     ArrowLeft, Calendar, User, Building2, Clock,
     Plus, ChevronDown, ChevronUp, Send, Link2,
     MessageCircle, CheckCircle2, Trash2, Users,
-    FolderKanban, AlertCircle, UserPlus, Pencil
+    FolderKanban, AlertCircle, UserPlus, Pencil,
+    Wallet, Receipt, X
 } from "lucide-react"
 
 type MemberUser = {
@@ -55,6 +56,7 @@ type Task = {
     assignees: TaskAssignee[];
     comments: TaskComment[];
     attachments: TaskAttachment[];
+    category: { id: string; name: string; order: number } | null;
 }
 
 type Project = {
@@ -62,6 +64,7 @@ type Project = {
     clientId: string; ownerId: string; statusId: string;
     isCompleted: boolean;
     startDate: string | null; endDate: string | null;
+    budget: number | null;
     createdAt: string; updatedAt: string;
     client: { id: string; name: string; businessType: string | null;[key: string]: any };
     owner: SerializedUser;
@@ -70,13 +73,28 @@ type Project = {
     tasks: Task[];
 }
 
+type ProjectStatus = {
+    id: string; name: string;
+}
+
+type RevenueEntry = {
+    id: string
+    amount: number
+    date: string
+    type: string
+    description: string | null
+}
+
 type Props = {
     project: Project
     users: SerializedUser[]
     taskStatuses: any[]
+    projectStatuses: ProjectStatus[]
     isBoss: boolean
     isBossOrDev: boolean
     currentUserId: string
+    revenues?: RevenueEntry[]
+    taskCategories: { id: string; name: string; order: number; [key: string]: any }[]
 }
 
 // Avatar color palette
@@ -113,17 +131,29 @@ function Avatar({ user, size = "md" }: { user: { id: string; name: string; nickn
     )
 }
 
-export default function ProjectDetailClient({ project, users, taskStatuses, isBoss, isBossOrDev, currentUserId }: Props) {
+export default function ProjectDetailClient({ project, users, taskStatuses, projectStatuses, isBoss, isBossOrDev, currentUserId, revenues: initialRevenues = [], taskCategories }: Props) {
     const router = useRouter()
     const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null)
     const [showAddTask, setShowAddTask] = useState(false)
     const [showMemberPanel, setShowMemberPanel] = useState(false)
+
+    // Revenue state
+    const [revenues, setRevenues] = useState<RevenueEntry[]>(initialRevenues)
+    const [showAddRevenue, setShowAddRevenue] = useState(false)
+    const [revenueAmount, setRevenueAmount] = useState("")
+    const [revenueDate, setRevenueDate] = useState(new Date().toISOString().split("T")[0])
+    const [revenueType, setRevenueType] = useState("รายได้โปรเจค")
+    const [revenueDesc, setRevenueDesc] = useState("")
+    const [revenueSaving, setRevenueSaving] = useState(false)
 
     // New task form
     const [newTaskName, setNewTaskName] = useState("")
     const [newTaskDesc, setNewTaskDesc] = useState("")
     const [newTaskDue, setNewTaskDue] = useState("")
     const [newTaskAssignees, setNewTaskAssignees] = useState<string[]>([])
+    const [newTaskCategory, setNewTaskCategory] = useState("")
+    const [categorySearch, setCategorySearch] = useState("")
+    const [showCategoryDropdown, setShowCategoryDropdown] = useState(false)
 
     // Edit task form
     const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
@@ -138,6 +168,15 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
     const [linkUrls, setLinkUrls] = useState<Record<string, string>>({})
 
     const [saving, setSaving] = useState(false)
+
+    // Edit project form
+    const [showEditProject, setShowEditProject] = useState(false)
+    const [editProjectName, setEditProjectName] = useState(project.name)
+    const [editProjectDesc, setEditProjectDesc] = useState(project.description || "")
+    const [editProjectStatusId, setEditProjectStatusId] = useState(project.statusId)
+    const [editProjectOwnerId, setEditProjectOwnerId] = useState(project.ownerId)
+    const [editProjectStartDate, setEditProjectStartDate] = useState(project.startDate ? project.startDate.split("T")[0] : "")
+    const [editProjectEndDate, setEditProjectEndDate] = useState(project.endDate ? project.endDate.split("T")[0] : "")
 
     // Member state (optimistic updates)
     const [localMemberIds, setLocalMemberIds] = useState<string[]>(project.members.map(m => m.userId))
@@ -169,11 +208,12 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
                 body: JSON.stringify({
                     name: newTaskName,
                     description: newTaskDesc || null,
+                    categoryId: newTaskCategory || null,
                     dueDate: newTaskDue || null,
                     assigneeIds: newTaskAssignees,
                 }),
             })
-            setNewTaskName(""); setNewTaskDesc(""); setNewTaskDue(""); setNewTaskAssignees([])
+            setNewTaskName(""); setNewTaskDesc(""); setNewTaskDue(""); setNewTaskAssignees([]); setNewTaskCategory(""); setCategorySearch("");
             setShowAddTask(false)
             router.refresh()
         } catch (e) { console.error(e) }
@@ -258,6 +298,28 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
         router.refresh()
     }
 
+    const handleEditProject = async () => {
+        if (!editProjectName.trim()) return
+        setSaving(true)
+        try {
+            await fetch(`/api/projects/${project.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: editProjectName,
+                    description: editProjectDesc || null,
+                    statusId: editProjectStatusId,
+                    ownerId: isBoss ? editProjectOwnerId : undefined,
+                    startDate: editProjectStartDate || null,
+                    endDate: editProjectEndDate || null,
+                }),
+            })
+            setShowEditProject(false)
+            router.refresh()
+        } catch (e) { console.error(e) }
+        setSaving(false)
+    }
+
     const handleCompleteProject = async () => {
         if (!confirm("ยืนยันปิดโปรเจคนี้?")) return
         await fetch(`/api/projects/${project.id}/complete`, { method: "POST" })
@@ -273,6 +335,45 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
         router.refresh()
     }
 
+    // Revenue handlers
+    const totalRevenue = revenues.reduce((sum, r) => sum + r.amount, 0)
+
+    const handleAddRevenue = async () => {
+        if (!revenueAmount || parseFloat(revenueAmount) <= 0) return
+        setRevenueSaving(true)
+        try {
+            const res = await fetch(`/api/projects/${project.id}/revenue`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    amount: revenueAmount,
+                    date: revenueDate,
+                    type: revenueType,
+                    description: revenueDesc || null,
+                }),
+            })
+            if (res.ok) {
+                const newRev = await res.json()
+                setRevenues(prev => [{ ...newRev, date: newRev.date }, ...prev])
+                setRevenueAmount("")
+                setRevenueDesc("")
+                setRevenueDate(new Date().toISOString().split("T")[0])
+                setShowAddRevenue(false)
+                router.refresh()
+            }
+        } catch (e) { console.error(e) }
+        setRevenueSaving(false)
+    }
+
+    const handleDeleteRevenue = async (revenueId: string) => {
+        if (!confirm("ลบรายการรายได้นี้?")) return
+        try {
+            await fetch(`/api/projects/${project.id}/revenue?revenueId=${revenueId}`, { method: "DELETE" })
+            setRevenues(prev => prev.filter(r => r.id !== revenueId))
+            router.refresh()
+        } catch (e) { console.error(e) }
+    }
+
     const statusBadgeClass = (name: string) => {
         if (name.includes("ยังไม่เริ่ม")) return "bg-gray-100 text-gray-600"
         if (name.includes("กำลัง")) return "bg-blue-100 text-blue-700"
@@ -282,6 +383,16 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
         if (name.includes("ตรวจ")) return "bg-purple-100 text-purple-700"
         return "bg-gray-100 text-gray-600"
     }
+
+    const categoryGroups = [
+        { label: "Pre-Production", range: [1, 4] },
+        { label: "On Process", range: [5, 8] },
+        { label: "Post-Production", range: [9, 15] },
+    ]
+
+    const filteredCategories = taskCategories.filter(c =>
+        c.name.toLowerCase().includes(categorySearch.toLowerCase())
+    )
 
     return (
         <div className="space-y-6">
@@ -302,7 +413,18 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
                                     <span className="text-xs font-medium px-3 py-1 rounded-full bg-green-100 text-green-700">✅ ปิดงานแล้ว</span>
                                 )}
                             </div>
-                            <h1 className="text-2xl font-bold text-gray-900 mb-1">{project.name}</h1>
+                            <div className="flex items-center gap-2 mb-1">
+                                <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+                                {isBossOrDev && !project.isCompleted && (
+                                    <button
+                                        onClick={() => setShowEditProject(!showEditProject)}
+                                        className="p-1.5 rounded-lg hover:bg-purple-50 text-gray-400 hover:text-purple-600 transition-colors"
+                                        title="แก้ไขโปรเจค"
+                                    >
+                                        <Pencil className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
                             {project.description && (
                                 <p className="text-gray-500 text-sm">{project.description}</p>
                             )}
@@ -416,6 +538,240 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
                 </div>
             </div>
 
+            {/* Edit Project Form */}
+            {showEditProject && (
+                <div className="bg-white rounded-2xl p-6 border-2 border-purple-200">
+                    <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <Pencil className="w-4 h-4 text-purple-500" /> แก้ไขข้อมูลโปรเจค
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium text-gray-700 block mb-1">ชื่อโปรเจค *</label>
+                            <input
+                                value={editProjectName} onChange={e => setEditProjectName(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                            />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium text-gray-700 block mb-1">คำอธิบาย</label>
+                            <textarea
+                                value={editProjectDesc} onChange={e => setEditProjectDesc(e.target.value)}
+                                rows={2}
+                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1">สถานะโปรเจค</label>
+                            <select
+                                value={editProjectStatusId} onChange={e => setEditProjectStatusId(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 bg-white"
+                            >
+                                {projectStatuses.map(s => (
+                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                        {isBoss && (
+                            <div>
+                                <label className="text-sm font-medium text-gray-700 block mb-1">เจ้าของโปรเจค</label>
+                                <select
+                                    value={editProjectOwnerId} onChange={e => setEditProjectOwnerId(e.target.value)}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 bg-white"
+                                >
+                                    {users.map(u => (
+                                        <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1">วันเริ่มต้น</label>
+                            <input type="date" value={editProjectStartDate} onChange={e => setEditProjectStartDate(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700 block mb-1">วันสิ้นสุด</label>
+                            <input type="date" value={editProjectEndDate} onChange={e => setEditProjectEndDate(e.target.value)}
+                                className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                            />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 mt-5">
+                        <button
+                            onClick={handleEditProject}
+                            disabled={saving || !editProjectName.trim()}
+                            className="sv-btn-purple px-6 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {saving ? "กำลังบันทึก..." : "บันทึก"}
+                        </button>
+                        <button
+                            onClick={() => setShowEditProject(false)}
+                            className="px-6 py-2.5 text-sm text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
+                        >
+                            ยกเลิก
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Revenue Section - BOSS/DEV only */}
+            {isBossOrDev && (
+                <div className="bg-white rounded-2xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <Wallet className="w-5 h-5 text-emerald-500" /> การเงินโปรเจค
+                        </h2>
+                        {!project.isCompleted && (
+                            <button
+                                onClick={() => setShowAddRevenue(!showAddRevenue)}
+                                className="flex items-center gap-2 px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
+                            >
+                                <Plus className="w-4 h-4" /> บันทึกการรับเงิน
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Budget Summary Cards */}
+                    {project.budget != null && (
+                        <div className="mb-5">
+                            <div className="grid grid-cols-3 gap-3 mb-3">
+                                <div className="bg-blue-50 rounded-xl p-4 text-center">
+                                    <p className="text-xs text-blue-500 font-medium mb-1">มูลค่าโปรเจค</p>
+                                    <p className="text-lg font-bold text-blue-700">฿{project.budget.toLocaleString()}</p>
+                                </div>
+                                <div className="bg-emerald-50 rounded-xl p-4 text-center">
+                                    <p className="text-xs text-emerald-500 font-medium mb-1">รับเงินแล้ว</p>
+                                    <p className="text-lg font-bold text-emerald-700">฿{totalRevenue.toLocaleString()}</p>
+                                </div>
+                                <div className={`rounded-xl p-4 text-center ${totalRevenue >= project.budget ? "bg-green-50" : "bg-amber-50"}`}>
+                                    <p className={`text-xs font-medium mb-1 ${totalRevenue >= project.budget ? "text-green-500" : "text-amber-500"}`}>คงเหลือ</p>
+                                    <p className={`text-lg font-bold ${totalRevenue >= project.budget ? "text-green-700" : "text-amber-700"}`}>
+                                        ฿{Math.max(0, project.budget - totalRevenue).toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
+                            {/* Progress bar */}
+                            <div className="bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                                <div
+                                    className={`h-full rounded-full transition-all duration-500 ${totalRevenue >= project.budget ? "bg-green-500" : "bg-emerald-400"}`}
+                                    style={{ width: `${Math.min(100, (totalRevenue / project.budget) * 100).toFixed(1)}%` }}
+                                />
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1 text-right">
+                                {Math.min(100, Math.round((totalRevenue / project.budget) * 100))}% ของมูลค่าโปรเจค
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Add Revenue Form */}
+                    {showAddRevenue && (
+                        <div className="mb-4 p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+                            <h3 className="font-semibold text-gray-900 mb-3 text-sm">➕ เพิ่มรายการรายได้</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 block mb-1">จำนวนเงิน (บาท) *</label>
+                                    <input
+                                        type="number"
+                                        value={revenueAmount}
+                                        onChange={e => setRevenueAmount(e.target.value)}
+                                        placeholder="0.00"
+                                        min="0"
+                                        step="0.01"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 block mb-1">วันที่ *</label>
+                                    <input
+                                        type="date"
+                                        value={revenueDate}
+                                        onChange={e => setRevenueDate(e.target.value)}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 block mb-1">ประเภท</label>
+                                    <select
+                                        value={revenueType}
+                                        onChange={e => setRevenueType(e.target.value)}
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-white"
+                                    >
+                                        <option value="รายได้โปรเจค">รายได้โปรเจค</option>
+                                        <option value="มัดจำ">มัดจำ</option>
+                                        <option value="งวดที่ 1">งวดที่ 1</option>
+                                        <option value="งวดที่ 2">งวดที่ 2</option>
+                                        <option value="งวดที่ 3">งวดที่ 3</option>
+                                        <option value="งวดสุดท้าย">งวดสุดท้าย</option>
+                                        <option value="อื่นๆ">อื่นๆ</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-medium text-gray-700 block mb-1">หมายเหตุ</label>
+                                    <input
+                                        value={revenueDesc}
+                                        onChange={e => setRevenueDesc(e.target.value)}
+                                        placeholder="รายละเอียดเพิ่มเติม"
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 mt-4">
+                                <button
+                                    onClick={handleAddRevenue}
+                                    disabled={revenueSaving || !revenueAmount || parseFloat(revenueAmount) <= 0}
+                                    className="flex items-center gap-2 px-5 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
+                                >
+                                    {revenueSaving ? "กำลังบันทึก..." : "บันทึก"}
+                                </button>
+                                <button
+                                    onClick={() => setShowAddRevenue(false)}
+                                    className="px-5 py-2 text-sm text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl transition"
+                                >
+                                    ยกเลิก
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Revenue List */}
+                    {revenues.length > 0 ? (
+                        <div className="space-y-2">
+                            {revenues.map(rev => (
+                                <div key={rev.id} className="flex items-center justify-between py-3 px-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center">
+                                            <Receipt className="w-4 h-4 text-emerald-600" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900">{rev.type}</p>
+                                            <p className="text-xs text-gray-500">
+                                                {new Date(rev.date).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}
+                                                {rev.description && ` · ${rev.description}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm font-bold text-emerald-600">฿{rev.amount.toLocaleString()}</span>
+                                        {!project.isCompleted && (
+                                            <button
+                                                onClick={() => handleDeleteRevenue(rev.id)}
+                                                className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                                                title="ลบรายการ"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-400 text-center py-4">ยังไม่มีรายการรายได้</p>
+                    )}
+                </div>
+            )}
+
             {/* Tasks Section */}
             <div>
                 <div className="flex items-center justify-between mb-4">
@@ -450,6 +806,50 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
                                     rows={2}
                                     className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
                                 />
+                            </div>
+                            <div className="relative">
+                                <label className="text-sm font-medium text-gray-700 block mb-1">หมวดหมู่งาน</label>
+                                <div className="relative">
+                                    <input
+                                        value={newTaskCategory ? taskCategories.find(c => c.id === newTaskCategory)?.name || "" : categorySearch}
+                                        onChange={e => { setCategorySearch(e.target.value); setNewTaskCategory(""); setShowCategoryDropdown(true); }}
+                                        onFocus={() => setShowCategoryDropdown(true)}
+                                        onBlur={() => setTimeout(() => setShowCategoryDropdown(false), 200)}
+                                        placeholder="ค้นหาหมวดหมู่..."
+                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                                    />
+                                    {newTaskCategory && (
+                                        <button onClick={() => { setNewTaskCategory(""); setCategorySearch(""); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    )}
+                                </div>
+                                {showCategoryDropdown && (
+                                    <div className="absolute z-20 w-full mt-1 bg-white rounded-xl border border-gray-200 shadow-lg max-h-60 overflow-y-auto">
+                                        {categoryGroups.map(group => {
+                                            const items = filteredCategories.filter(c => c.order >= group.range[0] && c.order <= group.range[1])
+                                            if (items.length === 0) return null
+                                            return (
+                                                <div key={group.label}>
+                                                    <div className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase bg-gray-50 sticky top-0">{group.label}</div>
+                                                    {items.map(cat => (
+                                                        <button
+                                                            key={cat.id}
+                                                            type="button"
+                                                            onClick={() => { setNewTaskCategory(cat.id); setCategorySearch(""); setShowCategoryDropdown(false); }}
+                                                            className="w-full text-left px-4 py-2 text-sm hover:bg-purple-50 transition-colors"
+                                                        >
+                                                            {cat.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )
+                                        })}
+                                        {filteredCategories.length === 0 && (
+                                            <div className="px-4 py-3 text-sm text-gray-400">ไม่พบหมวดหมู่</div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
@@ -514,6 +914,11 @@ export default function ProjectDetailClient({ project, users, taskStatuses, isBo
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2.5">
                                                 <p className={`font-medium text-sm ${isDone ? "text-gray-400" : "text-gray-900"}`}>{task.name}</p>
+                                                {task.category && (
+                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-600">
+                                                        {task.category.name}
+                                                    </span>
+                                                )}
                                                 <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full flex-shrink-0 ${statusBadgeClass(statusName)}`}>
                                                     {statusName}
                                                 </span>

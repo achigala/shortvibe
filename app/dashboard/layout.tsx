@@ -11,9 +11,11 @@ import {
   Bell,
   Video,
   Settings,
-  UserCircle
+  UserCircle,
+  Gift
 } from "lucide-react"
 import { UserMenu } from "@/components/user-menu"
+import { NotificationBell } from "@/components/notification-bell"
 
 const bossNavigation = [
   { name: "แดชบอร์ด", href: "/dashboard", icon: LayoutDashboard },
@@ -22,13 +24,15 @@ const bossNavigation = [
   { name: "โปรเจค", href: "/projects", icon: FolderKanban },
   { name: "ปฏิทิน", href: "/calendar", icon: Calendar },
   { name: "รายงานรายได้", href: "/revenue", icon: Receipt },
-  { name: "ตั้งค่า", href: "/admin/master", icon: Settings },
+  { name: "สวัสดิการ", href: "/rewards", icon: Gift },
+  { name: "ตั้งค่า", href: "/admin", icon: Settings },
 ]
 
 const staffNavigation = [
   { name: "แดชบอร์ด", href: "/dashboard", icon: LayoutDashboard },
   { name: "โปรเจค", href: "/projects", icon: FolderKanban },
   { name: "ปฏิทิน", href: "/calendar", icon: Calendar },
+  { name: "สวัสดิการ", href: "/rewards", icon: Gift },
 ]
 
 export default async function DashboardLayout({
@@ -107,12 +111,7 @@ export default async function DashboardLayout({
           {/* Right side: Notification + User */}
           <div className="flex items-center gap-4 ml-8">
             {/* Notification Bell */}
-            <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">
-              <Bell className="w-5 h-5 text-gray-500" />
-              <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center">
-                3
-              </span>
-            </button>
+            <NotificationBell />
 
             {/* User Avatar + Name + Dropdown */}
             <UserMenu

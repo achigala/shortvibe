@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { hash } from "bcryptjs"
 import prisma from "@/lib/prisma"
+import { createNotificationForMany } from "@/lib/notifications"
 
 export async function POST(req: Request) {
   try {
@@ -36,9 +37,34 @@ export async function POST(req: Request) {
       }
     })
 
+    // Notify all BOSS users about new registration
+    const userRole = role || "STAFF"
+    if (userRole !== "BOSS") {
+      try {
+        const bossUsers = await prisma.user.findMany({
+          where: { role: "BOSS", isApproved: true },
+          select: { id: true },
+        })
+        console.log("[Register] Found BOSS users for notification:", bossUsers.length)
+        if (bossUsers.length > 0) {
+          await createNotificationForMany(
+            bossUsers.map((b) => b.id),
+            {
+              type: "NEW_REGISTRATION",
+              title: "สมาชิกใหม่รออนุมัติ",
+              message: `${name} (${email}) ส่งคำขอเข้าระบบ`,
+              link: "/admin/users",
+            }
+          )
+        }
+      } catch (notifError: any) {
+        console.error("[Register] Notification error:", notifError?.message || notifError)
+      }
+    }
+
     return NextResponse.json({
-      message: role === "BOSS" 
-        ? "ลงทะเบียนสำเร็จ" 
+      message: role === "BOSS"
+        ? "ลงทะเบียนสำเร็จ"
         : "ลงทะเบียนสำเร็จ รอการอนุมัติจาก Boss",
       userId: user.id
     })
