@@ -96,6 +96,8 @@ export default async function RewardsPage() {
       status: c.status,
       note: c.note,
       claimedAt: c.claimedAt.toISOString(),
+      reviewedAt: c.reviewedAt?.toISOString() || null,
+      reviewedBy: c.reviewedBy ? { name: c.reviewedBy.name } : null,
       claimedBy: { name: c.claimedBy.name, nickname: (c.claimedBy as any).nickname || null },
       assignment: {
         reward: { name: c.assignment.reward.name, amount: c.assignment.reward.amount, frequency: c.assignment.reward.frequency },
