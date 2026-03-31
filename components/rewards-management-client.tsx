@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Gift, Plus, Check, X, Clock, Users, Pencil, Trash2 } from "lucide-react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -103,9 +102,13 @@ function formatDate(iso: string) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function RewardsManagementClient({ rewards, users, pendingClaims, allClaims }: Props) {
-  const router = useRouter()
   const [tab, setTab] = useState<"all" | "pending" | "history">("all")
   const [loading, setLoading] = useState(false)
+
+  // Local state for optimistic updates
+  const [localRewards, setLocalRewards] = useState(rewards)
+  const [localPendingClaims, setLocalPendingClaims] = useState(pendingClaims)
+  const [localAllClaims, setLocalAllClaims] = useState(allClaims)
 
   // Create reward dialog
   const [showCreate, setShowCreate] = useState(false)
@@ -131,7 +134,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
     if (!createName.trim() || !createAmount) return
     setLoading(true)
     try {
-      await fetch("/api/rewards", {
+      const res = await fetch("/api/rewards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -141,12 +144,15 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
           frequency: createFreq,
         }),
       })
+      if (res.ok) {
+        const newReward = await res.json()
+        setLocalRewards(prev => [...prev, { ...newReward, assignments: newReward.assignments || [] }])
+      }
       setShowCreate(false)
       setCreateName("")
       setCreateDesc("")
       setCreateAmount("")
       setCreateFreq("MONTHLY")
-      router.refresh()
     } finally {
       setLoading(false)
     }
@@ -166,8 +172,11 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
           frequency: editFreq,
         }),
       })
+      setLocalRewards(prev => prev.map(r => r.id === editId
+        ? { ...r, name: editName.trim(), description: editDesc.trim() || null, amount: parseFloat(editAmount), frequency: editFreq }
+        : r
+      ))
       setEditId(null)
-      router.refresh()
     } finally {
       setLoading(false)
     }
@@ -178,7 +187,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
     setLoading(true)
     try {
       await fetch(`/api/rewards/${rewardId}`, { method: "DELETE" })
-      router.refresh()
+      setLocalRewards(prev => prev.filter(r => r.id !== rewardId))
     } finally {
       setLoading(false)
     }
@@ -193,13 +202,19 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
     if (!assignRewardId) return
     setLoading(true)
     try {
-      await fetch(`/api/rewards/${assignRewardId}/assign`, {
+      const res = await fetch(`/api/rewards/${assignRewardId}/assign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userIds: selectedUserIds }),
       })
+      if (res.ok) {
+        const updatedReward = await res.json()
+        setLocalRewards(prev => prev.map(r => r.id === assignRewardId
+          ? { ...r, assignments: updatedReward.assignments || r.assignments }
+          : r
+        ))
+      }
       setAssignRewardId(null)
-      router.refresh()
     } finally {
       setLoading(false)
     }
@@ -217,7 +232,11 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       })
-      router.refresh()
+      const claim = localPendingClaims.find(c => c.id === claimId)
+      if (claim) {
+        setLocalPendingClaims(prev => prev.filter(c => c.id !== claimId))
+        setLocalAllClaims(prev => [...prev, { ...claim, status, reviewedAt: new Date().toISOString() }])
+      }
     } finally {
       setLoading(false)
     }
@@ -235,7 +254,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
 
   const tabs = [
     { key: "all" as const, label: "สวัสดิการทั้งหมด" },
-    { key: "pending" as const, label: `รออนุมัติ (${pendingClaims.length})` },
+    { key: "pending" as const, label: `รออนุมัติ (${localPendingClaims.length})` },
     { key: "history" as const, label: "ประวัติ" },
   ]
 
@@ -273,12 +292,12 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
             <Plus className="w-4 h-4" /> สร้างสวัสดิการ
           </button>
 
-          {rewards.length === 0 && (
+          {localRewards.length === 0 && (
             <div className="text-center text-gray-400 py-16">ยังไม่มีสวัสดิการ</div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {rewards.map((reward) => (
+            {localRewards.map((reward) => (
               <div key={reward.id} className="bg-white rounded-2xl p-5 shadow-sm">
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -350,10 +369,10 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
       {/* ── Tab 2: รออนุมัติ ── */}
       {tab === "pending" && (
         <div className="space-y-3">
-          {pendingClaims.length === 0 && (
+          {localPendingClaims.length === 0 && (
             <div className="text-center text-gray-400 py-16">ไม่มีรายการรออนุมัติ</div>
           )}
-          {pendingClaims.map((claim) => (
+          {localPendingClaims.map((claim) => (
             <div key={claim.id} className="bg-white rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-medium">
@@ -397,10 +416,10 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
       {/* ── Tab 3: ประวัติ ── */}
       {tab === "history" && (
         <div className="space-y-3">
-          {allClaims.length === 0 && (
+          {localAllClaims.length === 0 && (
             <div className="text-center text-gray-400 py-16">ยังไม่มีประวัติการเคลม</div>
           )}
-          {allClaims.map((claim) => (
+          {localAllClaims.map((claim) => (
             <div key={claim.id} className="bg-white rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-medium">

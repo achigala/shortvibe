@@ -178,6 +178,12 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     const [editProjectStartDate, setEditProjectStartDate] = useState(project.startDate ? project.startDate.split("T")[0] : "")
     const [editProjectEndDate, setEditProjectEndDate] = useState(project.endDate ? project.endDate.split("T")[0] : "")
 
+    // Local project state (optimistic updates)
+    const [localProject, setLocalProject] = useState(project)
+
+    // Local tasks state (optimistic updates)
+    const [localTasks, setLocalTasks] = useState(project.tasks)
+
     // Member state (optimistic updates)
     const [localMemberIds, setLocalMemberIds] = useState<string[]>(project.members.map(m => m.userId))
 
@@ -192,8 +198,8 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
         .filter(Boolean) as SerializedUser[]
 
     // Computed
-    const totalTasks = project.tasks.length
-    const doneTasks = project.tasks.filter(t => t.status?.name?.includes("เสร็จ")).length
+    const totalTasks = localTasks.length
+    const doneTasks = localTasks.filter(t => t.status?.name?.includes("เสร็จ")).length
     const overallProgress = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0
     const canComplete = isBoss && doneTasks === totalTasks && totalTasks > 0 && !project.isCompleted
 
@@ -202,7 +208,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
         if (!newTaskName.trim()) return
         setSaving(true)
         try {
-            await fetch(`/api/projects/${project.id}/tasks`, {
+            const res = await fetch(`/api/projects/${project.id}/tasks`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -213,20 +219,35 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                     assigneeIds: newTaskAssignees,
                 }),
             })
-            setNewTaskName(""); setNewTaskDesc(""); setNewTaskDue(""); setNewTaskAssignees([]); setNewTaskCategory(""); setCategorySearch("");
-            setShowAddTask(false)
-            router.refresh()
+            if (res.ok) {
+                const newTask = await res.json()
+                setLocalTasks(prev => [...prev, {
+                    ...newTask,
+                    dueDate: newTask.dueDate ?? null,
+                    closedAt: newTask.closedAt ?? null,
+                    status: taskStatuses.find(s => s.id === newTask.statusId) || null,
+                    category: newTask.category || null,
+                    assignees: newTask.assignees || [],
+                    comments: [],
+                    attachments: [],
+                }])
+                setNewTaskName(""); setNewTaskDesc(""); setNewTaskDue(""); setNewTaskAssignees([]); setNewTaskCategory(""); setCategorySearch("");
+                setShowAddTask(false)
+            }
         } catch (e) { console.error(e) }
         setSaving(false)
     }
 
     const handleUpdateStatus = async (taskId: string, statusId: string) => {
+        setLocalTasks(prev => prev.map(t => t.id === taskId
+            ? { ...t, statusId, status: taskStatuses.find(s => s.id === statusId) || t.status }
+            : t
+        ))
         await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ statusId }),
         })
-        router.refresh()
     }
 
     const startEditTask = (task: Task) => {
@@ -239,6 +260,10 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     const handleEditTask = async (taskId: string) => {
         if (!editName.trim()) return
         setSaving(true)
+        setLocalTasks(prev => prev.map(t => t.id === taskId
+            ? { ...t, name: editName, description: editDesc || null, dueDate: editDue || null }
+            : t
+        ))
         await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -250,37 +275,57 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
         })
         setEditingTaskId(null)
         setSaving(false)
-        router.refresh()
     }
 
     const handleDeleteTask = async (taskId: string) => {
         if (!confirm("ลบ Task นี้?")) return
+        setLocalTasks(prev => prev.filter(t => t.id !== taskId))
         await fetch(`/api/projects/${project.id}/tasks/${taskId}`, { method: "DELETE" })
-        router.refresh()
     }
 
     const handleAddComment = async (taskId: string) => {
         const content = commentTexts[taskId]?.trim()
         if (!content) return
+        const currentUser = users.find(u => u.id === currentUserId)
+        const tempComment = {
+            id: `temp-${Date.now()}`,
+            content,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            user: currentUser || { id: currentUserId, name: "", email: "", role: "", nickname: null, position: null, avatar: null },
+        }
+        setLocalTasks(prev => prev.map(t => t.id === taskId
+            ? { ...t, comments: [...t.comments, tempComment] }
+            : t
+        ))
+        setCommentTexts(prev => ({ ...prev, [taskId]: "" }))
         await fetch(`/api/projects/${project.id}/tasks/${taskId}/comments`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ content }),
         })
-        setCommentTexts(prev => ({ ...prev, [taskId]: "" }))
-        router.refresh()
     }
 
     const handleAddLink = async (taskId: string) => {
         const url = linkUrls[taskId]?.trim()
         if (!url) return
+        const tempAttachment = {
+            id: `temp-${Date.now()}`,
+            type: "link",
+            url,
+            name: url,
+            createdAt: new Date().toISOString(),
+        }
+        setLocalTasks(prev => prev.map(t => t.id === taskId
+            ? { ...t, attachments: [...t.attachments, tempAttachment] }
+            : t
+        ))
+        setLinkUrls(prev => ({ ...prev, [taskId]: "" }))
         await fetch(`/api/projects/${project.id}/tasks/${taskId}/attachments`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url, name: url }),
         })
-        setLinkUrls(prev => ({ ...prev, [taskId]: "" }))
-        router.refresh()
     }
 
     const handleToggleMember = async (userId: string) => {
@@ -295,7 +340,6 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userIds: newIds }),
         })
-        router.refresh()
     }
 
     const handleEditProject = async () => {
@@ -314,8 +358,17 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                     endDate: editProjectEndDate || null,
                 }),
             })
+            setLocalProject(prev => ({
+                ...prev,
+                name: editProjectName,
+                description: editProjectDesc || null,
+                statusId: editProjectStatusId,
+                ownerId: editProjectOwnerId,
+                startDate: editProjectStartDate || null,
+                endDate: editProjectEndDate || null,
+                status: projectStatuses.find(s => s.id === editProjectStatusId) || prev.status,
+            }))
             setShowEditProject(false)
-            router.refresh()
         } catch (e) { console.error(e) }
         setSaving(false)
     }
@@ -327,12 +380,19 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     }
 
     const handleUpdateTaskAssignees = async (taskId: string, assigneeIds: string[]) => {
+        const assigneeUsers = assigneeIds.map(id => {
+            const user = users.find(u => u.id === id)
+            return { id: `ta-${id}`, userId: id, user: user || { id, name: "", email: "", role: "", nickname: null, position: null, avatar: null } }
+        })
+        setLocalTasks(prev => prev.map(t => t.id === taskId
+            ? { ...t, assignees: assigneeUsers }
+            : t
+        ))
         await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ assigneeIds }),
         })
-        router.refresh()
     }
 
     // Revenue handlers
@@ -359,7 +419,6 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                 setRevenueDesc("")
                 setRevenueDate(new Date().toISOString().split("T")[0])
                 setShowAddRevenue(false)
-                router.refresh()
             }
         } catch (e) { console.error(e) }
         setRevenueSaving(false)
@@ -370,7 +429,6 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
         try {
             await fetch(`/api/projects/${project.id}/revenue?revenueId=${revenueId}`, { method: "DELETE" })
             setRevenues(prev => prev.filter(r => r.id !== revenueId))
-            router.refresh()
         } catch (e) { console.error(e) }
     }
 
@@ -406,15 +464,15 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                     <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1">
                             <div className="flex items-center gap-3 mb-2">
-                                <span className={`text-xs font-medium px-3 py-1 rounded-full ${statusBadgeClass(project.status.name)}`}>
-                                    {project.status.name}
+                                <span className={`text-xs font-medium px-3 py-1 rounded-full ${statusBadgeClass(localProject.status.name)}`}>
+                                    {localProject.status.name}
                                 </span>
                                 {project.isCompleted && (
                                     <span className="text-xs font-medium px-3 py-1 rounded-full bg-green-100 text-green-700">✅ ปิดงานแล้ว</span>
                                 )}
                             </div>
                             <div className="flex items-center gap-2 mb-1">
-                                <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+                                <h1 className="text-2xl font-bold text-gray-900">{localProject.name}</h1>
                                 {isBossOrDev && !project.isCompleted && (
                                     <button
                                         onClick={() => setShowEditProject(!showEditProject)}
@@ -425,8 +483,8 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                                     </button>
                                 )}
                             </div>
-                            {project.description && (
-                                <p className="text-gray-500 text-sm">{project.description}</p>
+                            {localProject.description && (
+                                <p className="text-gray-500 text-sm">{localProject.description}</p>
                             )}
 
                             {/* Info badges */}
@@ -434,11 +492,11 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                                 <span className="text-sm text-gray-500 flex items-center gap-1.5">
                                     <Building2 className="w-4 h-4 text-gray-400" /> {project.client.name}
                                 </span>
-                                {project.startDate && (
+                                {localProject.startDate && (
                                     <span className="text-sm text-gray-500 flex items-center gap-1.5">
                                         <Calendar className="w-4 h-4 text-gray-400" />
-                                        {new Date(project.startDate).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
-                                        {project.endDate && ` - ${new Date(project.endDate).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`}
+                                        {new Date(localProject.startDate).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}
+                                        {localProject.endDate && ` - ${new Date(localProject.endDate).toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`}
                                     </span>
                                 )}
                             </div>
@@ -892,7 +950,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
 
                 {/* Task List */}
                 <div className="space-y-3">
-                    {project.tasks.map(task => {
+                    {localTasks.map(task => {
                         const isExpanded = expandedTaskId === task.id
                         const statusName = task.status?.name || "ยังไม่เริ่ม"
                         const isDone = statusName.includes("เสร็จ")
@@ -1168,7 +1226,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                         )
                     })}
 
-                    {project.tasks.length === 0 && (
+                    {localTasks.length === 0 && (
                         <div className="text-center text-gray-400 py-12 bg-white rounded-2xl">
                             ยังไม่มี Task — กดปุ่ม &quot;เพิ่ม Task&quot; เพื่อสร้าง
                         </div>
