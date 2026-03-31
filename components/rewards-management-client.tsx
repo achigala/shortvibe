@@ -538,7 +538,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
               <button
                 onClick={handleCreate}
                 disabled={loading || !createName.trim() || !createAmount}
-                className="sv-btn-purple disabled:opacity-50"
+                className="sv-btn-purple px-4 py-2 text-sm disabled:opacity-50"
               >
                 สร้าง
               </button>
@@ -606,7 +606,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
               <button
                 onClick={handleEdit}
                 disabled={loading || !editName.trim() || !editAmount}
-                className="sv-btn-purple disabled:opacity-50"
+                className="sv-btn-purple px-4 py-2 text-sm disabled:opacity-50"
               >
                 บันทึก
               </button>
@@ -646,7 +646,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
               >
                 ยกเลิก
               </button>
-              <button onClick={handleAssign} disabled={loading} className="sv-btn-purple disabled:opacity-50">
+              <button onClick={handleAssign} disabled={loading} className="sv-btn-purple px-4 py-2 text-sm disabled:opacity-50">
                 บันทึก
               </button>
             </div>
