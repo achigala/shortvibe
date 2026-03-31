@@ -162,7 +162,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
     if (!editId || !editName.trim() || !editAmount) return
     setLoading(true)
     try {
-      await fetch(`/api/rewards/${editId}`, {
+      const res = await fetch(`/api/rewards/${editId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -172,11 +172,13 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
           frequency: editFreq,
         }),
       })
-      setLocalRewards(prev => prev.map(r => r.id === editId
-        ? { ...r, name: editName.trim(), description: editDesc.trim() || null, amount: parseFloat(editAmount), frequency: editFreq }
-        : r
-      ))
-      setEditId(null)
+      if (res.ok) {
+        setLocalRewards(prev => prev.map(r => r.id === editId
+          ? { ...r, name: editName.trim(), description: editDesc.trim() || null, amount: parseFloat(editAmount), frequency: editFreq }
+          : r
+        ))
+        setEditId(null)
+      }
     } finally {
       setLoading(false)
     }
@@ -185,9 +187,16 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
   async function handleDelete(rewardId: string) {
     if (!confirm("ต้องการลบสวัสดิการนี้?")) return
     setLoading(true)
+    const prevRewards = localRewards
     try {
-      await fetch(`/api/rewards/${rewardId}`, { method: "DELETE" })
-      setLocalRewards(prev => prev.filter(r => r.id !== rewardId))
+      const res = await fetch(`/api/rewards/${rewardId}`, { method: "DELETE" })
+      if (res.ok) {
+        setLocalRewards(prev => prev.filter(r => r.id !== rewardId))
+      } else {
+        setLocalRewards(prevRewards)
+      }
+    } catch {
+      setLocalRewards(prevRewards)
     } finally {
       setLoading(false)
     }
@@ -226,17 +235,27 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
 
   async function handleClaimAction(claimId: string, status: "APPROVED" | "REJECTED") {
     setLoading(true)
+    const prevPending = localPendingClaims
+    const prevAll = localAllClaims
     try {
-      await fetch(`/api/rewards/claims/${claimId}`, {
+      const res = await fetch(`/api/rewards/claims/${claimId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       })
-      const claim = localPendingClaims.find(c => c.id === claimId)
-      if (claim) {
-        setLocalPendingClaims(prev => prev.filter(c => c.id !== claimId))
-        setLocalAllClaims(prev => [...prev, { ...claim, status, reviewedAt: new Date().toISOString() }])
+      if (res.ok) {
+        const claim = prevPending.find(c => c.id === claimId)
+        if (claim) {
+          setLocalPendingClaims(prev => prev.filter(c => c.id !== claimId))
+          setLocalAllClaims(prev => [...prev, { ...claim, status, reviewedAt: new Date().toISOString() }])
+        }
+      } else {
+        setLocalPendingClaims(prevPending)
+        setLocalAllClaims(prevAll)
       }
+    } catch {
+      setLocalPendingClaims(prevPending)
+      setLocalAllClaims(prevAll)
     } finally {
       setLoading(false)
     }

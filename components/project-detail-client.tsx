@@ -239,15 +239,17 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     }
 
     const handleUpdateStatus = async (taskId: string, statusId: string) => {
+        const prevTasks = localTasks
         setLocalTasks(prev => prev.map(t => t.id === taskId
             ? { ...t, statusId, status: taskStatuses.find(s => s.id === statusId) || t.status }
             : t
         ))
-        await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
+        const res = await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ statusId }),
         })
+        if (!res.ok) setLocalTasks(prevTasks)
     }
 
     const startEditTask = (task: Task) => {
@@ -260,27 +262,33 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     const handleEditTask = async (taskId: string) => {
         if (!editName.trim()) return
         setSaving(true)
+        const prevTasks = localTasks
         setLocalTasks(prev => prev.map(t => t.id === taskId
             ? { ...t, name: editName, description: editDesc || null, dueDate: editDue || null }
             : t
         ))
-        await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                name: editName,
-                description: editDesc || null,
-                dueDate: editDue || null,
-            }),
-        })
+        try {
+            const res = await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    name: editName,
+                    description: editDesc || null,
+                    dueDate: editDue || null,
+                }),
+            })
+            if (!res.ok) setLocalTasks(prevTasks)
+        } catch { setLocalTasks(prevTasks) }
         setEditingTaskId(null)
         setSaving(false)
     }
 
     const handleDeleteTask = async (taskId: string) => {
         if (!confirm("ลบ Task นี้?")) return
+        const prevTasks = localTasks
         setLocalTasks(prev => prev.filter(t => t.id !== taskId))
-        await fetch(`/api/projects/${project.id}/tasks/${taskId}`, { method: "DELETE" })
+        const res = await fetch(`/api/projects/${project.id}/tasks/${taskId}`, { method: "DELETE" })
+        if (!res.ok) setLocalTasks(prevTasks)
     }
 
     const handleAddComment = async (taskId: string) => {
@@ -294,16 +302,21 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
             updatedAt: new Date().toISOString(),
             user: currentUser || { id: currentUserId, name: "", email: "", role: "", nickname: null, position: null, avatar: null },
         }
+        const prevTasks = localTasks
         setLocalTasks(prev => prev.map(t => t.id === taskId
             ? { ...t, comments: [...t.comments, tempComment] }
             : t
         ))
         setCommentTexts(prev => ({ ...prev, [taskId]: "" }))
-        await fetch(`/api/projects/${project.id}/tasks/${taskId}/comments`, {
+        const res = await fetch(`/api/projects/${project.id}/tasks/${taskId}/comments`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ content }),
         })
+        if (!res.ok) {
+            setLocalTasks(prevTasks)
+            setCommentTexts(prev => ({ ...prev, [taskId]: content }))
+        }
     }
 
     const handleAddLink = async (taskId: string) => {
@@ -316,37 +329,43 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
             name: url,
             createdAt: new Date().toISOString(),
         }
+        const prevTasks = localTasks
         setLocalTasks(prev => prev.map(t => t.id === taskId
             ? { ...t, attachments: [...t.attachments, tempAttachment] }
             : t
         ))
         setLinkUrls(prev => ({ ...prev, [taskId]: "" }))
-        await fetch(`/api/projects/${project.id}/tasks/${taskId}/attachments`, {
+        const res = await fetch(`/api/projects/${project.id}/tasks/${taskId}/attachments`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url, name: url }),
         })
+        if (!res.ok) {
+            setLocalTasks(prevTasks)
+            setLinkUrls(prev => ({ ...prev, [taskId]: url }))
+        }
     }
 
     const handleToggleMember = async (userId: string) => {
-        // Optimistic update — change local state immediately
+        const prevIds = localMemberIds
         const newIds = localMemberIds.includes(userId)
             ? localMemberIds.filter(id => id !== userId)
             : [...localMemberIds, userId]
         setLocalMemberIds(newIds)
 
-        await fetch(`/api/projects/${project.id}/members`, {
+        const res = await fetch(`/api/projects/${project.id}/members`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ userIds: newIds }),
         })
+        if (!res.ok) setLocalMemberIds(prevIds)
     }
 
     const handleEditProject = async () => {
         if (!editProjectName.trim()) return
         setSaving(true)
         try {
-            await fetch(`/api/projects/${project.id}`, {
+            const res = await fetch(`/api/projects/${project.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -358,17 +377,19 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                     endDate: editProjectEndDate || null,
                 }),
             })
-            setLocalProject(prev => ({
-                ...prev,
-                name: editProjectName,
-                description: editProjectDesc || null,
-                statusId: editProjectStatusId,
-                ownerId: editProjectOwnerId,
-                startDate: editProjectStartDate || null,
-                endDate: editProjectEndDate || null,
-                status: projectStatuses.find(s => s.id === editProjectStatusId) || prev.status,
-            }))
-            setShowEditProject(false)
+            if (res.ok) {
+                setLocalProject(prev => ({
+                    ...prev,
+                    name: editProjectName,
+                    description: editProjectDesc || null,
+                    statusId: editProjectStatusId,
+                    ownerId: editProjectOwnerId,
+                    startDate: editProjectStartDate || null,
+                    endDate: editProjectEndDate || null,
+                    status: projectStatuses.find(s => s.id === editProjectStatusId) || prev.status,
+                }))
+                setShowEditProject(false)
+            }
         } catch (e) { console.error(e) }
         setSaving(false)
     }
@@ -380,6 +401,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     }
 
     const handleUpdateTaskAssignees = async (taskId: string, assigneeIds: string[]) => {
+        const prevTasks = localTasks
         const assigneeUsers = assigneeIds.map(id => {
             const user = users.find(u => u.id === id)
             return { id: `ta-${id}`, userId: id, user: user || { id, name: "", email: "", role: "", nickname: null, position: null, avatar: null } }
@@ -388,11 +410,12 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
             ? { ...t, assignees: assigneeUsers }
             : t
         ))
-        await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
+        const res = await fetch(`/api/projects/${project.id}/tasks/${taskId}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ assigneeIds }),
         })
+        if (!res.ok) setLocalTasks(prevTasks)
     }
 
     // Revenue handlers
