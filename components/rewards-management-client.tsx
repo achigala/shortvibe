@@ -72,9 +72,9 @@ const FREQ_LABELS: Record<string, string> = {
 }
 
 const FREQ_COLORS: Record<string, string> = {
-  MONTHLY: "bg-blue-100 text-blue-700",
-  YEARLY: "bg-green-100 text-green-700",
-  ONE_TIME: "bg-orange-100 text-orange-700",
+  MONTHLY: "sv-badge sv-badge-inprogress",
+  YEARLY: "sv-badge sv-badge-done",
+  ONE_TIME: "sv-badge sv-badge-waiting",
 }
 
 function formatAmount(n: number) {
@@ -281,11 +281,14 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Gift className="w-6 h-6 text-purple-500" /> สวัสดิการ
-          </h1>
-          <p className="text-gray-500 mt-1">จัดการสวัสดิการและอนุมัติการเคลม</p>
+        <div className="flex items-center gap-3">
+          <div className="sv-icon-box sv-icon-purple">
+            <Gift className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="sv-section-title">สวัสดิการ</h1>
+            <p className="text-gray-500 text-sm mt-0.5">จัดการสวัสดิการและอนุมัติการเคลม</p>
+          </div>
         </div>
       </div>
 
@@ -307,7 +310,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
       {/* ── Tab 1: สวัสดิการทั้งหมด ── */}
       {tab === "all" && (
         <div className="space-y-4">
-          <button onClick={() => setShowCreate(true)} className="sv-btn-purple flex items-center gap-2">
+          <button onClick={() => setShowCreate(true)} className="sv-btn-purple flex items-center gap-2 px-4 py-2 text-sm">
             <Plus className="w-4 h-4" /> สร้างสวัสดิการ
           </button>
 
@@ -317,7 +320,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {localRewards.map((reward) => (
-              <div key={reward.id} className="bg-white rounded-2xl p-5 shadow-sm">
+              <div key={reward.id} className="bg-white rounded-2xl p-5 sv-card-hover">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="font-semibold text-gray-900">{reward.name}</h3>
@@ -339,7 +342,7 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
                       .map((a) => (
                         <div
                           key={a.id}
-                          className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-xs font-medium border-2 border-white"
+                          className="sv-avatar-sm border-2 border-white"
                           title={a.user.nickname || a.user.name}
                         >
                           {(a.user.nickname || a.user.name).charAt(0)}
@@ -392,9 +395,9 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
             <div className="text-center text-gray-400 py-16">ไม่มีรายการรออนุมัติ</div>
           )}
           {localPendingClaims.map((claim) => (
-            <div key={claim.id} className="bg-white rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div key={claim.id} className="bg-white rounded-2xl p-5 sv-card-hover flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-medium">
+                <div className="sv-avatar">
                   {(claim.claimedBy.nickname || claim.claimedBy.name).charAt(0)}
                 </div>
                 <div>
@@ -439,9 +442,9 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
             <div className="text-center text-gray-400 py-16">ยังไม่มีประวัติการเคลม</div>
           )}
           {localAllClaims.map((claim) => (
-            <div key={claim.id} className="bg-white rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div key={claim.id} className="bg-white rounded-2xl p-5 sv-card-hover flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-medium">
+                <div className="sv-avatar">
                   {(claim.claimedBy.nickname || claim.claimedBy.name).charAt(0)}
                 </div>
                 <div>
@@ -460,9 +463,9 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
               </div>
               <div className="flex items-center gap-3">
                 {claim.status === "APPROVED" ? (
-                  <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">อนุมัติ</span>
+                  <span className="sv-badge sv-badge-done">อนุมัติ</span>
                 ) : (
-                  <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">ปฏิเสธ</span>
+                  <span className="sv-badge sv-badge-overdue">ปฏิเสธ</span>
                 )}
                 <div className="text-right">
                   {claim.reviewedAt && <p className="text-xs text-gray-400">{formatDate(claim.reviewedAt)}</p>}
