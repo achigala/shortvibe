@@ -10,6 +10,7 @@ import {
     FolderKanban, AlertCircle, UserPlus, Pencil,
     Wallet, Receipt, X
 } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 type MemberUser = {
     id: string; name: string; nickname: string | null;
@@ -419,6 +420,16 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     }
 
     // Revenue handlers
+    const REVENUE_TYPE_OPTIONS = [
+        { value: "รายได้โปรเจค", label: "รายได้โปรเจค" },
+        { value: "มัดจำ", label: "มัดจำ" },
+        { value: "งวดที่ 1", label: "งวดที่ 1" },
+        { value: "งวดที่ 2", label: "งวดที่ 2" },
+        { value: "งวดที่ 3", label: "งวดที่ 3" },
+        { value: "งวดสุดท้าย", label: "งวดสุดท้าย" },
+        { value: "อื่นๆ", label: "อื่นๆ" },
+    ]
+
     const totalRevenue = revenues.reduce((sum, r) => sum + r.amount, 0)
 
     const handleAddRevenue = async () => {
@@ -773,19 +784,13 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-700 block mb-1">ประเภท</label>
-                                    <select
+                                    <SearchableSelect
+                                        options={REVENUE_TYPE_OPTIONS}
                                         value={revenueType}
-                                        onChange={e => setRevenueType(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-white"
-                                    >
-                                        <option value="รายได้โปรเจค">รายได้โปรเจค</option>
-                                        <option value="มัดจำ">มัดจำ</option>
-                                        <option value="งวดที่ 1">งวดที่ 1</option>
-                                        <option value="งวดที่ 2">งวดที่ 2</option>
-                                        <option value="งวดที่ 3">งวดที่ 3</option>
-                                        <option value="งวดสุดท้าย">งวดสุดท้าย</option>
-                                        <option value="อื่นๆ">อื่นๆ</option>
-                                    </select>
+                                        onChange={setRevenueType}
+                                        placeholder="เลือกประเภท"
+                                        searchPlaceholder="ค้นหา..."
+                                    />
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-700 block mb-1">หมายเหตุ</label>
