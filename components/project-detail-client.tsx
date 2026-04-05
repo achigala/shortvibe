@@ -10,6 +10,7 @@ import {
     FolderKanban, AlertCircle, UserPlus, Pencil,
     Wallet, Receipt, X
 } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
 
 type MemberUser = {
     id: string; name: string; nickname: string | null;
@@ -107,6 +108,17 @@ const avatarColors = [
     "from-indigo-400 to-violet-400",
     "from-teal-400 to-green-400",
     "from-fuchsia-400 to-pink-400",
+]
+
+// Revenue type options
+const REVENUE_TYPE_OPTIONS = [
+    { value: "รายได้โปรเจค", label: "รายได้โปรเจค" },
+    { value: "มัดจำ", label: "มัดจำ" },
+    { value: "งวดที่ 1", label: "งวดที่ 1" },
+    { value: "งวดที่ 2", label: "งวดที่ 2" },
+    { value: "งวดที่ 3", label: "งวดที่ 3" },
+    { value: "งวดสุดท้าย", label: "งวดสุดท้าย" },
+    { value: "อื่นๆ", label: "อื่นๆ" },
 ]
 
 function getAvatarColor(userId: string) {
@@ -420,6 +432,12 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
 
     // Revenue handlers
     const totalRevenue = revenues.reduce((sum, r) => sum + r.amount, 0)
+    const parsedRevenueAmount = parseFloat(revenueAmount)
+    const remainingBudget = project.budget != null ? project.budget - totalRevenue : null
+    const isOverBudget =
+      remainingBudget != null &&
+      parsedRevenueAmount > 0 &&
+      parsedRevenueAmount > remainingBudget
 
     const handleAddRevenue = async () => {
         if (!revenueAmount || parseFloat(revenueAmount) <= 0) return
@@ -441,6 +459,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                 setRevenueAmount("")
                 setRevenueDesc("")
                 setRevenueDate(new Date().toISOString().split("T")[0])
+                setRevenueType("รายได้โปรเจค")
                 setShowAddRevenue(false)
             }
         } catch (e) { console.error(e) }
@@ -759,8 +778,17 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                                         placeholder="0.00"
                                         min="0"
                                         step="0.01"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+                                        className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 ${
+                                            isOverBudget
+                                                ? "border-red-500 ring-1 ring-red-500 focus:ring-red-500/20 focus:border-red-500"
+                                                : "border-gray-200 focus:ring-emerald-500/20 focus:border-emerald-400"
+                                        }`}
                                     />
+                                    {isOverBudget && remainingBudget != null && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            เกินมูลค่าคงเหลือ (฿{Math.max(0, remainingBudget).toLocaleString("th-TH")})
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-700 block mb-1">วันที่ *</label>
@@ -773,19 +801,13 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-700 block mb-1">ประเภท</label>
-                                    <select
+                                    <SearchableSelect
+                                        options={REVENUE_TYPE_OPTIONS}
                                         value={revenueType}
-                                        onChange={e => setRevenueType(e.target.value)}
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 bg-white"
-                                    >
-                                        <option value="รายได้โปรเจค">รายได้โปรเจค</option>
-                                        <option value="มัดจำ">มัดจำ</option>
-                                        <option value="งวดที่ 1">งวดที่ 1</option>
-                                        <option value="งวดที่ 2">งวดที่ 2</option>
-                                        <option value="งวดที่ 3">งวดที่ 3</option>
-                                        <option value="งวดสุดท้าย">งวดสุดท้าย</option>
-                                        <option value="อื่นๆ">อื่นๆ</option>
-                                    </select>
+                                        onChange={setRevenueType}
+                                        placeholder="เลือกประเภท"
+                                        searchPlaceholder="ค้นหา..."
+                                    />
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-700 block mb-1">หมายเหตุ</label>
@@ -800,7 +822,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                             <div className="flex items-center gap-3 mt-4">
                                 <button
                                     onClick={handleAddRevenue}
-                                    disabled={revenueSaving || !revenueAmount || parseFloat(revenueAmount) <= 0}
+                                    disabled={revenueSaving || !revenueAmount || parseFloat(revenueAmount) <= 0 || isOverBudget}
                                     className="flex items-center gap-2 px-5 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
                                 >
                                     {revenueSaving ? "กำลังบันทึก..." : "บันทึก"}
