@@ -432,6 +432,11 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
 
     // Revenue handlers
     const totalRevenue = revenues.reduce((sum, r) => sum + r.amount, 0)
+    const remainingBudget = project.budget != null ? project.budget - totalRevenue : null
+    const isOverBudget =
+      remainingBudget != null &&
+      parseFloat(revenueAmount) > 0 &&
+      parseFloat(revenueAmount) > remainingBudget
 
     const handleAddRevenue = async () => {
         if (!revenueAmount || parseFloat(revenueAmount) <= 0) return
@@ -772,8 +777,17 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                                         placeholder="0.00"
                                         min="0"
                                         step="0.01"
-                                        className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+                                        className={`w-full px-4 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 ${
+                                            isOverBudget
+                                                ? "border-red-500 ring-1 ring-red-500 focus:ring-red-500/20 focus:border-red-500"
+                                                : "border-gray-200 focus:ring-emerald-500/20 focus:border-emerald-400"
+                                        }`}
                                     />
+                                    {isOverBudget && remainingBudget != null && (
+                                        <p className="text-xs text-red-500 mt-1">
+                                            เกินมูลค่าคงเหลือ (฿{Math.max(0, remainingBudget).toLocaleString("th-TH")})
+                                        </p>
+                                    )}
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-700 block mb-1">วันที่ *</label>
@@ -807,7 +821,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                             <div className="flex items-center gap-3 mt-4">
                                 <button
                                     onClick={handleAddRevenue}
-                                    disabled={revenueSaving || !revenueAmount || parseFloat(revenueAmount) <= 0}
+                                    disabled={revenueSaving || !revenueAmount || parseFloat(revenueAmount) <= 0 || isOverBudget}
                                     className="flex items-center gap-2 px-5 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors disabled:opacity-50"
                                 >
                                     {revenueSaving ? "กำลังบันทึก..." : "บันทึก"}
