@@ -59,3 +59,12 @@ For approval/financial actions: wait for `res.ok` THEN update state (safer).
 - Production: PostgreSQL on Supabase
 - Local dev: `dev.db` (SQLite, gitignored)
 - Uses `prisma db push` (not `prisma migrate`) — no migration files needed
+
+## Components — Standard Patterns
+- Dropdowns: always use `SearchableSelect` from `components/ui/searchable-select.tsx` — named export `{ SearchableSelect }`, props: `options: {value,label}[]`, `value`, `onChange`, `placeholder?`, `searchPlaceholder?`. Never use native `<select>`.
+- Static option arrays (e.g. type lists) must be at **module scope**, not inside component functions — avoids re-allocation on every render.
+- When resetting a form after submit, reset ALL state fields including dropdowns (not just text inputs).
+
+## API Response Shapes — Known Gotchas
+- `POST /api/rewards/[rewardId]/assign` returns a raw `RewardAssignment[]` — NOT `{ assignments: [...] }`. Rebuild optimistic state from `users` prop, not the API response.
+- Batch DB operations: use `Promise.all()` instead of `for...await` loops for parallel Prisma calls.
