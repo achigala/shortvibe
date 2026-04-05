@@ -432,11 +432,12 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
 
     // Revenue handlers
     const totalRevenue = revenues.reduce((sum, r) => sum + r.amount, 0)
+    const parsedRevenueAmount = parseFloat(revenueAmount)
     const remainingBudget = project.budget != null ? project.budget - totalRevenue : null
     const isOverBudget =
       remainingBudget != null &&
-      parseFloat(revenueAmount) > 0 &&
-      parseFloat(revenueAmount) > remainingBudget
+      parsedRevenueAmount > 0 &&
+      parsedRevenueAmount > remainingBudget
 
     const handleAddRevenue = async () => {
         if (!revenueAmount || parseFloat(revenueAmount) <= 0) return
