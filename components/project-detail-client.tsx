@@ -110,6 +110,17 @@ const avatarColors = [
     "from-fuchsia-400 to-pink-400",
 ]
 
+// Revenue type options
+const REVENUE_TYPE_OPTIONS = [
+    { value: "รายได้โปรเจค", label: "รายได้โปรเจค" },
+    { value: "มัดจำ", label: "มัดจำ" },
+    { value: "งวดที่ 1", label: "งวดที่ 1" },
+    { value: "งวดที่ 2", label: "งวดที่ 2" },
+    { value: "งวดที่ 3", label: "งวดที่ 3" },
+    { value: "งวดสุดท้าย", label: "งวดสุดท้าย" },
+    { value: "อื่นๆ", label: "อื่นๆ" },
+]
+
 function getAvatarColor(userId: string) {
     let hash = 0
     for (let i = 0; i < userId.length; i++) hash = userId.charCodeAt(i) + ((hash << 5) - hash)
@@ -420,16 +431,6 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     }
 
     // Revenue handlers
-    const REVENUE_TYPE_OPTIONS = [
-        { value: "รายได้โปรเจค", label: "รายได้โปรเจค" },
-        { value: "มัดจำ", label: "มัดจำ" },
-        { value: "งวดที่ 1", label: "งวดที่ 1" },
-        { value: "งวดที่ 2", label: "งวดที่ 2" },
-        { value: "งวดที่ 3", label: "งวดที่ 3" },
-        { value: "งวดสุดท้าย", label: "งวดสุดท้าย" },
-        { value: "อื่นๆ", label: "อื่นๆ" },
-    ]
-
     const totalRevenue = revenues.reduce((sum, r) => sum + r.amount, 0)
 
     const handleAddRevenue = async () => {
@@ -452,6 +453,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                 setRevenueAmount("")
                 setRevenueDesc("")
                 setRevenueDate(new Date().toISOString().split("T")[0])
+                setRevenueType("รายได้โปรเจค")
                 setShowAddRevenue(false)
             }
         } catch (e) { console.error(e) }
