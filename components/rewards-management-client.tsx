@@ -2,6 +2,13 @@
 
 import { useState } from "react"
 import { Gift, Plus, Check, X, Clock, Users, Pencil, Trash2 } from "lucide-react"
+import { SearchableSelect } from "@/components/ui/searchable-select"
+
+const FREQ_OPTIONS = [
+  { value: "MONTHLY", label: "รายเดือน" },
+  { value: "YEARLY", label: "รายปี" },
+  { value: "ONE_TIME", label: "ครั้งเดียว" },
+]
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -209,23 +216,37 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
 
   async function handleAssign() {
     if (!assignRewardId) return
-    setLoading(true)
+    const prevRewards = localRewards
+
+    // Optimistic update — show immediately, rollback on failure
+    setLocalRewards(prev => prev.map(r => {
+      if (r.id !== assignRewardId) return r
+      const newAssignments = selectedUserIds.map(uid => {
+        const existing = r.assignments.find(a => a.userId === uid)
+        if (existing) return { ...existing, isActive: true }
+        const user = users.find(u => u.id === uid)!
+        return {
+          id: `temp-${uid}`,
+          userId: uid,
+          isActive: true,
+          assignedAt: new Date().toISOString(),
+          user,
+          claims: [],
+        }
+      })
+      return { ...r, assignments: newAssignments }
+    }))
+    setAssignRewardId(null)
+
     try {
       const res = await fetch(`/api/rewards/${assignRewardId}/assign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userIds: selectedUserIds }),
       })
-      if (res.ok) {
-        const updatedReward = await res.json()
-        setLocalRewards(prev => prev.map(r => r.id === assignRewardId
-          ? { ...r, assignments: updatedReward.assignments || r.assignments }
-          : r
-        ))
-      }
-      setAssignRewardId(null)
-    } finally {
-      setLoading(false)
+      if (!res.ok) setLocalRewards(prevRewards)
+    } catch {
+      setLocalRewards(prevRewards)
     }
   }
 
@@ -517,15 +538,11 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">ความถี่</label>
-                <select
+                <SearchableSelect
+                  options={FREQ_OPTIONS}
                   value={createFreq}
-                  onChange={(e) => setCreateFreq(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
-                >
-                  <option value="MONTHLY">รายเดือน</option>
-                  <option value="YEARLY">รายปี</option>
-                  <option value="ONE_TIME">ครั้งเดียว</option>
-                </select>
+                  onChange={setCreateFreq}
+                />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
@@ -585,15 +602,11 @@ export function RewardsManagementClient({ rewards, users, pendingClaims, allClai
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">ความถี่</label>
-                <select
+                <SearchableSelect
+                  options={FREQ_OPTIONS}
                   value={editFreq}
-                  onChange={(e) => setEditFreq(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
-                >
-                  <option value="MONTHLY">รายเดือน</option>
-                  <option value="YEARLY">รายปี</option>
-                  <option value="ONE_TIME">ครั้งเดียว</option>
-                </select>
+                  onChange={setEditFreq}
+                />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">

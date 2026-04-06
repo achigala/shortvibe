@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { Gift, Check, X, Clock, ChevronDown, ChevronUp, Wallet } from "lucide-react"
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -41,9 +40,9 @@ const FREQ_LABELS: Record<string, string> = {
 }
 
 const FREQ_COLORS: Record<string, string> = {
-  MONTHLY: "bg-blue-100 text-blue-700",
-  YEARLY: "bg-green-100 text-green-700",
-  ONE_TIME: "bg-orange-100 text-orange-700",
+  MONTHLY: "sv-badge sv-badge-inprogress",
+  YEARLY: "sv-badge sv-badge-done",
+  ONE_TIME: "sv-badge sv-badge-waiting",
 }
 
 function formatAmount(n: number) {
@@ -80,9 +79,9 @@ function formatDate(iso: string) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function MyRewardsClient({ assignments }: Props) {
-  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [expandedIds, setExpandedIds] = useState<string[]>([])
+  const [localAssignments, setLocalAssignments] = useState(assignments)
 
   function toggleExpand(id: string) {
     setExpandedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -90,56 +89,88 @@ export function MyRewardsClient({ assignments }: Props) {
 
   async function handleClaim(assignmentId: string) {
     setLoading(true)
+    const prev = localAssignments
     try {
-      await fetch("/api/rewards/claims", {
+      const res = await fetch("/api/rewards/claims", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ assignmentId }),
       })
-      router.refresh()
+      if (res.ok) {
+        // Wait for server confirmation (financial action) before updating UI
+        const newClaim = await res.json()
+        setLocalAssignments((curr) =>
+          curr.map((a) =>
+            a.id === assignmentId
+              ? {
+                  ...a,
+                  claims: [
+                    {
+                      id: newClaim.id,
+                      period: newClaim.period,
+                      status: newClaim.status,
+                      note: newClaim.note,
+                      claimedAt: newClaim.claimedAt,
+                      reviewedAt: null,
+                      reviewedBy: null,
+                    },
+                    ...a.claims,
+                  ],
+                }
+              : a
+          )
+        )
+      } else {
+        setLocalAssignments(prev)
+      }
+    } catch {
+      setLocalAssignments(prev)
     } finally {
       setLoading(false)
     }
   }
 
   // Summary calculations
-  const totalRewards = assignments.length
+  const totalRewards = localAssignments.length
   const now = new Date()
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
-  const claimedThisMonth = assignments.filter((a) =>
+  const claimedThisMonth = localAssignments.filter((a) =>
     a.claims.some((c) => c.claimedAt.startsWith(currentMonth) && c.status !== "REJECTED")
   ).length
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-          <Gift className="w-6 h-6 text-purple-500" /> สวัสดิการของฉัน
-        </h1>
-        <p className="text-gray-500 mt-1">ดูและเคลมสวัสดิการของคุณ</p>
+      <div className="flex items-center gap-3">
+        <div className="sv-icon-box sv-icon-purple">
+          <Gift className="w-5 h-5" />
+        </div>
+        <div>
+          <h1 className="sv-section-title">สวัสดิการของฉัน</h1>
+          <p className="text-gray-500 text-sm mt-0.5">ดูและเคลมสวัสดิการของคุณ</p>
+        </div>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl p-5 shadow-sm">
+        <div className="bg-white rounded-2xl p-5 sv-card-hover">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500">จำนวนสวัสดิการ</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{totalRewards}</p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center">
+            <div className="sv-icon-box sv-icon-purple">
               <Gift className="w-5 h-5" />
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-5 shadow-sm">
+        <div className="bg-white rounded-2xl p-5 sv-card-hover">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs text-gray-500">เคลมแล้วเดือนนี้</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">{claimedThisMonth}</p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-green-100 text-green-600 flex items-center justify-center">
+            <div className="sv-icon-box sv-icon-green">
               <Wallet className="w-5 h-5" />
             </div>
           </div>
@@ -147,26 +178,26 @@ export function MyRewardsClient({ assignments }: Props) {
       </div>
 
       {/* Reward Cards */}
-      {assignments.length === 0 && (
+      {localAssignments.length === 0 && (
         <div className="text-center text-gray-400 py-16">ยังไม่มีสวัสดิการที่ได้รับ</div>
       )}
 
       <div className="space-y-4">
-        {assignments.map((assignment) => {
+        {localAssignments.map((assignment) => {
           const currentPeriod = getCurrentPeriod(assignment.reward.frequency)
           const currentClaim = assignment.claims.find((c) => c.period === currentPeriod)
           const pastClaims = assignment.claims.filter((c) => c.period !== currentPeriod)
           const isExpanded = expandedIds.includes(assignment.id)
 
           return (
-            <div key={assignment.id} className="bg-white rounded-2xl p-5 shadow-sm">
+            <div key={assignment.id} className="bg-white rounded-2xl p-5 sv-card-hover">
               {/* Reward info */}
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-semibold text-gray-900">{assignment.reward.name}</h3>
                   <p className="text-xl font-bold text-purple-600 mt-1">฿{formatAmount(assignment.reward.amount)}</p>
                 </div>
-                <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${FREQ_COLORS[assignment.reward.frequency] || ""}`}>
+                <span className={FREQ_COLORS[assignment.reward.frequency] || ""}>
                   {FREQ_LABELS[assignment.reward.frequency] || assignment.reward.frequency}
                 </span>
               </div>
@@ -188,30 +219,30 @@ export function MyRewardsClient({ assignments }: Props) {
                     <button
                       onClick={() => handleClaim(assignment.id)}
                       disabled={loading}
-                      className="sv-btn-purple text-sm disabled:opacity-50"
+                      className="sv-btn-purple px-4 py-2 text-sm disabled:opacity-50"
                     >
                       เคลม
                     </button>
                   )}
                   {currentClaim?.status === "PENDING" && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-700 flex items-center gap-1">
+                    <span className="sv-badge sv-badge-waiting flex items-center gap-1">
                       <Clock className="w-3 h-3" /> รออนุมัติ
                     </span>
                   )}
                   {currentClaim?.status === "APPROVED" && (
-                    <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 flex items-center gap-1">
+                    <span className="sv-badge sv-badge-done flex items-center gap-1">
                       <Check className="w-3 h-3" /> อนุมัติแล้ว
                     </span>
                   )}
                   {currentClaim?.status === "REJECTED" && (
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 flex items-center gap-1">
+                      <span className="sv-badge sv-badge-overdue flex items-center gap-1">
                         <X className="w-3 h-3" /> ถูกปฏิเสธ
                       </span>
                       <button
                         onClick={() => handleClaim(assignment.id)}
                         disabled={loading}
-                        className="sv-btn-purple text-sm disabled:opacity-50"
+                        className="sv-btn-purple px-4 py-2 text-sm disabled:opacity-50"
                       >
                         เคลมอีกครั้ง
                       </button>
@@ -242,13 +273,13 @@ export function MyRewardsClient({ assignments }: Props) {
                           </div>
                           <div className="flex items-center gap-2">
                             {claim.status === "PENDING" && (
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">รออนุมัติ</span>
+                              <span className="sv-badge sv-badge-waiting">รออนุมัติ</span>
                             )}
                             {claim.status === "APPROVED" && (
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">อนุมัติ</span>
+                              <span className="sv-badge sv-badge-done">อนุมัติ</span>
                             )}
                             {claim.status === "REJECTED" && (
-                              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">ปฏิเสธ</span>
+                              <span className="sv-badge sv-badge-overdue">ปฏิเสธ</span>
                             )}
                           </div>
                         </div>
