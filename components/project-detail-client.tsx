@@ -189,6 +189,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     const [editProjectOwnerId, setEditProjectOwnerId] = useState(project.ownerId)
     const [editProjectStartDate, setEditProjectStartDate] = useState(project.startDate ? project.startDate.split("T")[0] : "")
     const [editProjectEndDate, setEditProjectEndDate] = useState(project.endDate ? project.endDate.split("T")[0] : "")
+    const [editProjectBudget, setEditProjectBudget] = useState(project.budget != null ? String(project.budget) : "")
 
     // Local project state (optimistic updates)
     const [localProject, setLocalProject] = useState(project)
@@ -387,6 +388,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                     ownerId: isBoss ? editProjectOwnerId : undefined,
                     startDate: editProjectStartDate || null,
                     endDate: editProjectEndDate || null,
+                    budget: editProjectBudget === "" ? null : editProjectBudget,
                 }),
             })
             if (res.ok) {
@@ -398,6 +400,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                     ownerId: editProjectOwnerId,
                     startDate: editProjectStartDate || null,
                     endDate: editProjectEndDate || null,
+                    budget: editProjectBudget === "" ? null : parseFloat(editProjectBudget),
                     status: projectStatuses.find(s => s.id === editProjectStatusId) || prev.status,
                 }))
                 setShowEditProject(false)
@@ -515,7 +518,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                             </div>
                             <div className="flex items-center gap-2 mb-1">
                                 <h1 className="text-2xl font-bold text-gray-900">{localProject.name}</h1>
-                                {isBossOrDev && !project.isCompleted && (
+                                {isBossOrDev && (
                                     <button
                                         onClick={() => setShowEditProject(!showEditProject)}
                                         className="p-1.5 rounded-lg hover:bg-purple-50 text-gray-400 hover:text-purple-600 transition-colors"
@@ -696,6 +699,22 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                                 className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
                             />
                         </div>
+                        <div className="md:col-span-2">
+                            <label className="text-sm font-medium text-gray-700 block mb-1">มูลค่าโปรเจค (บาท)</label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">฿</span>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="0.00"
+                                    value={editProjectBudget}
+                                    onChange={e => setEditProjectBudget(e.target.value)}
+                                    className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400"
+                                />
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1">เว้นว่างไว้ถ้าไม่ต้องการระบุ</p>
+                        </div>
                     </div>
                     <div className="flex items-center gap-3 mt-5">
                         <button
@@ -722,44 +741,42 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                         <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                             <Wallet className="w-5 h-5 text-emerald-500" /> การเงินโปรเจค
                         </h2>
-                        {!project.isCompleted && (
-                            <button
-                                onClick={() => setShowAddRevenue(!showAddRevenue)}
-                                className="flex items-center gap-2 px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
-                            >
-                                <Plus className="w-4 h-4" /> บันทึกการรับเงิน
-                            </button>
-                        )}
+                        <button
+                            onClick={() => setShowAddRevenue(!showAddRevenue)}
+                            className="flex items-center gap-2 px-4 py-2 text-sm bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-medium transition-colors"
+                        >
+                            <Plus className="w-4 h-4" /> บันทึกการรับเงิน
+                        </button>
                     </div>
 
                     {/* Budget Summary Cards */}
-                    {project.budget != null && (
+                    {localProject.budget != null && (
                         <div className="mb-5">
                             <div className="grid grid-cols-3 gap-3 mb-3">
                                 <div className="bg-blue-50 rounded-xl p-4 text-center">
                                     <p className="text-xs text-blue-500 font-medium mb-1">มูลค่าโปรเจค</p>
-                                    <p className="text-lg font-bold text-blue-700">฿{project.budget.toLocaleString()}</p>
+                                    <p className="text-lg font-bold text-blue-700">฿{localProject.budget.toLocaleString()}</p>
                                 </div>
                                 <div className="bg-emerald-50 rounded-xl p-4 text-center">
                                     <p className="text-xs text-emerald-500 font-medium mb-1">รับเงินแล้ว</p>
                                     <p className="text-lg font-bold text-emerald-700">฿{totalRevenue.toLocaleString()}</p>
                                 </div>
-                                <div className={`rounded-xl p-4 text-center ${totalRevenue >= project.budget ? "bg-green-50" : "bg-amber-50"}`}>
-                                    <p className={`text-xs font-medium mb-1 ${totalRevenue >= project.budget ? "text-green-500" : "text-amber-500"}`}>คงเหลือ</p>
-                                    <p className={`text-lg font-bold ${totalRevenue >= project.budget ? "text-green-700" : "text-amber-700"}`}>
-                                        ฿{Math.max(0, project.budget - totalRevenue).toLocaleString()}
+                                <div className={`rounded-xl p-4 text-center ${totalRevenue >= localProject.budget ? "bg-green-50" : "bg-amber-50"}`}>
+                                    <p className={`text-xs font-medium mb-1 ${totalRevenue >= localProject.budget ? "text-green-500" : "text-amber-500"}`}>คงเหลือ</p>
+                                    <p className={`text-lg font-bold ${totalRevenue >= localProject.budget ? "text-green-700" : "text-amber-700"}`}>
+                                        ฿{Math.max(0, localProject.budget - totalRevenue).toLocaleString()}
                                     </p>
                                 </div>
                             </div>
                             {/* Progress bar */}
                             <div className="bg-gray-100 rounded-full h-2.5 overflow-hidden">
                                 <div
-                                    className={`h-full rounded-full transition-all duration-500 ${totalRevenue >= project.budget ? "bg-green-500" : "bg-emerald-400"}`}
-                                    style={{ width: `${Math.min(100, (totalRevenue / project.budget) * 100).toFixed(1)}%` }}
+                                    className={`h-full rounded-full transition-all duration-500 ${totalRevenue >= localProject.budget ? "bg-green-500" : "bg-emerald-400"}`}
+                                    style={{ width: `${Math.min(100, (totalRevenue / localProject.budget) * 100).toFixed(1)}%` }}
                                 />
                             </div>
                             <p className="text-xs text-gray-400 mt-1 text-right">
-                                {Math.min(100, Math.round((totalRevenue / project.budget) * 100))}% ของมูลค่าโปรเจค
+                                {Math.min(100, Math.round((totalRevenue / localProject.budget) * 100))}% ของมูลค่าโปรเจค
                             </p>
                         </div>
                     )}
