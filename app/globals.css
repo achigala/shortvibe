@@ -335,6 +335,17 @@
 .sv-nav-link.active {
   color: var(--sv-purple);
   background: #f5f3ff;
+  position: relative;
+}
+.sv-nav-link.active::after {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: -2px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--sv-purple);
 }
 
 /* Avatar */

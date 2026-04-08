@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
+import { serverCache } from "@/lib/cache"
 
 export async function PUT(
   request: NextRequest,
@@ -30,6 +32,9 @@ export async function PUT(
       },
     })
 
+    // Invalidate rewards cache
+    serverCache.invalidate("rewards:")
+
     return NextResponse.json(reward)
   } catch (error) {
     console.error("Failed to update reward:", error)
@@ -58,6 +63,10 @@ export async function DELETE(
       where: { id: rewardId },
       data: { isActive: false },
     })
+
+    // Invalidate rewards cache + Next.js route cache
+    serverCache.invalidate("rewards:")
+    revalidatePath("/rewards")
 
     return NextResponse.json(reward)
   } catch (error) {

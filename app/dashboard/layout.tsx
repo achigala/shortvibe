@@ -2,38 +2,39 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import prisma from "@/lib/prisma"
 import Link from "next/link"
-import {
-  LayoutDashboard,
-  Users,
-  FolderKanban,
-  Calendar,
-  Receipt,
-  Bell,
-  Video,
-  Settings,
-  UserCircle,
-  Gift
-} from "lucide-react"
+import { Video } from "lucide-react"
 import { UserMenu } from "@/components/user-menu"
 import { NotificationBell } from "@/components/notification-bell"
+import { NavLinks } from "@/components/nav-links"
+import { serverCache, CacheKeys, CacheTTL } from "@/lib/cache"
 
 const bossNavigation = [
-  { name: "แดชบอร์ด", href: "/dashboard", icon: LayoutDashboard },
-  { name: "ทีมงาน", href: "/team", icon: Users },
-  { name: "ลูกค้า", href: "/clients", icon: UserCircle },
-  { name: "โปรเจค", href: "/projects", icon: FolderKanban },
-  { name: "ปฏิทิน", href: "/calendar", icon: Calendar },
-  { name: "รายงานรายได้", href: "/revenue", icon: Receipt },
-  { name: "สวัสดิการ", href: "/rewards", icon: Gift },
-  { name: "ตั้งค่า", href: "/admin", icon: Settings },
+  { name: "แดชบอร์ด", href: "/dashboard", iconName: "LayoutDashboard" },
+  { name: "ทีมงาน", href: "/team", iconName: "Users" },
+  { name: "ลูกค้า", href: "/clients", iconName: "UserCircle" },
+  { name: "โปรเจค", href: "/projects", iconName: "FolderKanban" },
+  { name: "ปฏิทิน", href: "/calendar", iconName: "Calendar" },
+  { name: "รายงานรายได้", href: "/revenue", iconName: "Receipt" },
+  { name: "สวัสดิการ", href: "/rewards", iconName: "Gift" },
+  { name: "ตั้งค่า", href: "/admin", iconName: "Settings" },
 ]
 
 const staffNavigation = [
-  { name: "แดชบอร์ด", href: "/dashboard", icon: LayoutDashboard },
-  { name: "โปรเจค", href: "/projects", icon: FolderKanban },
-  { name: "ปฏิทิน", href: "/calendar", icon: Calendar },
-  { name: "สวัสดิการ", href: "/rewards", icon: Gift },
+  { name: "แดชบอร์ด", href: "/dashboard", iconName: "LayoutDashboard" },
+  { name: "โปรเจค", href: "/projects", iconName: "FolderKanban" },
+  { name: "ปฏิทิน", href: "/calendar", iconName: "Calendar" },
+  { name: "สวัสดิการ", href: "/rewards", iconName: "Gift" },
 ]
+
+// Theme color map - defined once at module level
+const themeColors: Record<string, { main: string; light: string }> = {
+  purple: { main: "#9333ea", light: "#c084fc" },
+  blue: { main: "#3b82f6", light: "#60a5fa" },
+  pink: { main: "#ec4899", light: "#f472b6" },
+  green: { main: "#10b981", light: "#34d399" },
+  orange: { main: "#f97316", light: "#fb923c" },
+  dark: { main: "#1f2937", light: "#4b5563" },
+}
 
 export default async function DashboardLayout({
   children,
@@ -50,24 +51,23 @@ export default async function DashboardLayout({
   const navigation = isBossOrDev ? bossNavigation : staffNavigation
   const initials = session.user.name?.charAt(0) || "U"
 
+  // Cache user theme - theme rarely changes, cache for 1 hour
   let themeStyle = {}
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { themeColor: true }
-    })
+    const userTheme = await serverCache.getOrSet(
+      CacheKeys.userTheme(session.user.id),
+      async () => {
+        const user = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { themeColor: true }
+        })
+        return user?.themeColor || null
+      },
+      CacheTTL.THEME
+    )
 
-    if (user?.themeColor) {
-      const colors: Record<string, { main: string, light: string }> = {
-        purple: { main: "#9333ea", light: "#c084fc" },
-        blue: { main: "#3b82f6", light: "#60a5fa" },
-        pink: { main: "#ec4899", light: "#f472b6" },
-        green: { main: "#10b981", light: "#34d399" },
-        orange: { main: "#f97316", light: "#fb923c" },
-        dark: { main: "#1f2937", light: "#4b5563" },
-      }
-
-      const theme = colors[user.themeColor]
+    if (userTheme) {
+      const theme = themeColors[userTheme]
       if (theme) {
         themeStyle = {
           "--sv-purple": theme.main,
@@ -95,18 +95,7 @@ export default async function DashboardLayout({
           </Link>
 
           {/* Navigation Links */}
-          <nav className="flex items-center gap-1">
-            {navigation.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className="sv-nav-link"
-              >
-                <item.icon className="w-4 h-4" />
-                {item.name}
-              </Link>
-            ))}
-          </nav>
+          <NavLinks items={navigation} />
 
           {/* Right side: Notification + User */}
           <div className="flex items-center gap-4 ml-8">

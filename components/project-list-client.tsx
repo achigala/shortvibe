@@ -21,6 +21,8 @@ interface ProjectData {
     status: { id: string; name: string }
     members: { user: { name: string; nickname?: string } }[]
     tasks: { progress: number; assignees: { user: { id: string; name: string } }[] }[]
+    budget: number | null
+    totalReceived: number | null
 }
 
 interface ProjectListClientProps {
@@ -314,6 +316,22 @@ export function ProjectListClient({
                                         <div className="sv-progress-fill" style={{ width: `${progress}%` }} />
                                     </div>
                                 </div>
+                                {isBossOrDev && project.budget !== null && (
+                                    <div className="mb-4 grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-gray-50">
+                                        <div>
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">มูลค่า</p>
+                                            <p className="text-sm font-semibold text-purple-600">
+                                                ฿{(project.budget || 0).toLocaleString("th-TH")}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-wide">รับจริง</p>
+                                            <p className="text-sm font-semibold text-green-600">
+                                                ฿{(project.totalReceived || 0).toLocaleString("th-TH")}
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                         <span className="text-xs text-gray-400 flex items-center gap-1">

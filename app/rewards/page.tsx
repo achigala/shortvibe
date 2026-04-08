@@ -4,6 +4,9 @@ import prisma from "@/lib/prisma"
 import { RewardsManagementClient } from "@/components/rewards-management-client"
 import { MyRewardsClient } from "@/components/my-rewards-client"
 
+// Disable all caching — rewards mutations must reflect immediately after refresh
+export const dynamic = "force-dynamic"
+
 export default async function RewardsPage() {
   const session = await auth()
   if (!session) redirect("/login")
@@ -13,6 +16,7 @@ export default async function RewardsPage() {
   if (isBossOrDev) {
     const [rewards, users, pendingClaims, allClaims] = await Promise.all([
       prisma.reward.findMany({
+        where: { isActive: true },
         include: {
           createdBy: true,
           assignments: {
@@ -35,7 +39,7 @@ export default async function RewardsPage() {
         orderBy: { name: "asc" },
       }),
       prisma.rewardClaim.findMany({
-        where: { status: "PENDING" },
+        where: { status: "PENDING", assignment: { reward: { isActive: true } } },
         include: {
           claimedBy: true,
           reviewedBy: true,
@@ -48,7 +52,7 @@ export default async function RewardsPage() {
         orderBy: { claimedAt: "desc" },
       }),
       prisma.rewardClaim.findMany({
-        where: { status: { not: "PENDING" } },
+        where: { status: { not: "PENDING" }, assignment: { reward: { isActive: true } } },
         include: {
           claimedBy: true,
           reviewedBy: true,
@@ -131,7 +135,7 @@ export default async function RewardsPage() {
 
   // STAFF view
   const assignments = await prisma.rewardAssignment.findMany({
-    where: { userId: session.user.id, isActive: true },
+    where: { userId: session.user.id, isActive: true, reward: { isActive: true } },
     include: {
       reward: true,
       claims: {
