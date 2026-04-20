@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import prisma from "@/lib/prisma"
 import { NextRequest, NextResponse } from "next/server"
+import { serverCache } from "@/lib/cache"
 
 // PUT - Update project (assign owners, update info)
 export async function PUT(
@@ -13,8 +14,26 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
 
-    // Only Boss can assign owner
-    if (body.ownerId && session.user.role !== "BOSS") {
+    // [C3] Only BOSS, DEVELOPER, or the project owner can edit project info
+    const isBoss = session.user.role === "BOSS"
+    const isDeveloper = session.user.role === "DEVELOPER"
+
+    if (!isBoss && !isDeveloper) {
+        // Check if the current user is the project owner
+        const project = await prisma.project.findUnique({
+            where: { id },
+            select: { ownerId: true },
+        })
+        if (!project) {
+            return NextResponse.json({ error: "Project not found" }, { status: 404 })
+        }
+        if (project.ownerId !== session.user.id) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        }
+    }
+
+    // Only BOSS can assign/change owner
+    if (body.ownerId && !isBoss) {
         return NextResponse.json({ error: "Only Boss can assign owners" }, { status: 403 })
     }
 
@@ -33,5 +52,41 @@ export async function PUT(
         include: { client: true, owner: true, status: true },
     })
 
+    // Invalidate caches
+    serverCache.invalidate("projects:")
+    serverCache.invalidate("dashboard:")
+    serverCache.invalidate("pending:")
+
     return NextResponse.json(updated)
+}
+
+// DELETE - Remove project (BOSS/DEVELOPER only)
+export async function DELETE(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const session = await auth()
+    if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    const role = session.user.role
+    if (role !== "BOSS" && role !== "DEVELOPER") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
+    const { id } = await params
+
+    // Schema cascade gap: Task and Revenue have no onDelete: Cascade,
+    // so we must delete them explicitly before the project.
+    // ProjectMember + Task's own children (TaskAssignee/Comment/Attachment) cascade.
+    await prisma.$transaction([
+        prisma.revenue.deleteMany({ where: { projectId: id } }),
+        prisma.task.deleteMany({ where: { projectId: id } }),
+        prisma.project.delete({ where: { id } }),
+    ])
+
+    serverCache.invalidate("projects:")
+    serverCache.invalidate("dashboard:")
+    serverCache.invalidate("pending:")
+
+    return NextResponse.json({ ok: true })
 }

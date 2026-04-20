@@ -180,6 +180,7 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
     const [linkUrls, setLinkUrls] = useState<Record<string, string>>({})
 
     const [saving, setSaving] = useState(false)
+    const [deleting, setDeleting] = useState(false)
 
     // Edit project form
     const [showEditProject, setShowEditProject] = useState(false)
@@ -302,6 +303,18 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
         setLocalTasks(prev => prev.filter(t => t.id !== taskId))
         const res = await fetch(`/api/projects/${project.id}/tasks/${taskId}`, { method: "DELETE" })
         if (!res.ok) setLocalTasks(prevTasks)
+    }
+
+    const handleDeleteProject = async () => {
+        if (!confirm(`ลบโปรเจค "${localProject.name}" ?\n\nการดำเนินการนี้จะลบ Task และข้อมูลการเงินทั้งหมดของโปรเจคนี้ และไม่สามารถกู้คืนได้`)) return
+        setDeleting(true)
+        const res = await fetch(`/api/projects/${project.id}`, { method: "DELETE" })
+        if (res.ok) {
+            router.push("/projects")
+        } else {
+            setDeleting(false)
+            alert("ลบโปรเจคไม่สำเร็จ")
+        }
     }
 
     const handleAddComment = async (taskId: string) => {
@@ -519,13 +532,23 @@ export default function ProjectDetailClient({ project, users, taskStatuses, proj
                             <div className="flex items-center gap-2 mb-1">
                                 <h1 className="text-2xl font-bold text-gray-900">{localProject.name}</h1>
                                 {isBossOrDev && (
-                                    <button
-                                        onClick={() => setShowEditProject(!showEditProject)}
-                                        className="p-1.5 rounded-lg hover:bg-purple-50 text-gray-400 hover:text-purple-600 transition-colors"
-                                        title="แก้ไขโปรเจค"
-                                    >
-                                        <Pencil className="w-4 h-4" />
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={() => setShowEditProject(!showEditProject)}
+                                            className="p-1.5 rounded-lg hover:bg-purple-50 text-gray-400 hover:text-purple-600 transition-colors"
+                                            title="แก้ไขโปรเจค"
+                                        >
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={handleDeleteProject}
+                                            disabled={deleting}
+                                            className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            title="ลบโปรเจค"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </>
                                 )}
                             </div>
                             {localProject.description && (
